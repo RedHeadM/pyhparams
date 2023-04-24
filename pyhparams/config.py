@@ -1,14 +1,7 @@
 # based on OpenMMLab. All rights reserved and significant changes made to software.
 import ast
-import copy
-import os
 import os.path as osp
-import platform
-import shutil
-import tempfile
 import types
-import uuid
-import warnings
 import dataclasses
 from argparse import Action, ArgumentParser, Namespace
 from collections import abc
@@ -59,7 +52,9 @@ def _dict_from_file(filename: str):
     if filename.endswith('.py'):
         with open(filename, encoding='utf-8') as f:
             codes = ast.parse(f.read())
+            print(f"DEBUG: _dict_from_file codes: {ast.dump(codes)}") # __AUTO_GENERATED_PRINT_VAR__
             codes = _RemoveAssignFromAST(BASE_KEY).visit(codes)
+            print(f"DEBUG: _dict_from_file codes: {codes}") # __AUTO_GENERATED_PRINT_VAR__
         codeobj = compile(codes, '', mode='exec')
         # Support load global variable in nested function of the
         # config.
