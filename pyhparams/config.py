@@ -10,7 +10,7 @@ from typing import Any, Optional, Sequence, Tuple, Union, Dict
 import ast
 
 # from addict import Dict
-from yapf.yapflib.yapf_api import FormatCode
+# from yapf.yapflib.yapf_api import FormatCode
 
 # from mmengine.fileio import dump, load
 # from mmengine.utils import (get_installed_path,
