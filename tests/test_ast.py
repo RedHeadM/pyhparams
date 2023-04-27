@@ -106,14 +106,24 @@ def test_ast_merge_dict_replace_top_level():
     a = ast.parse(r"foo={'replaced': 1,'addedtarget':4}")
     b = ast.parse(r"foo={'replaced': 3,'addedbase':10}")
     merged = ast_to_dict(merge(a, base=b))
-    print(f"DEBUG: test_ast_merge_dict_replace_top_level merged: {merged}") # __AUTO_GENERATED_PRINT_VAR__
     assert "foo" in merged
     assert merged["foo"].get('replaced') == 1
     assert merged["foo"].get('addedbase') == 10
     assert merged["foo"].get('addedtarget') == 4
 
-def test_ast_merge_dict_nesed():
-    pass # TODO
+def test_ast_merge_dict_nesed_1_replace():
+    a = ast.parse(r"foo={'level0': {'level1':0}}")
+    b = ast.parse(r"foo={'level0': {'level1':'to_be_gone'}}")
+    merged = ast_to_dict(merge(a, base=b))
+    assert "foo" in merged
+    assert merged["foo"].get('level0') == {'level1':0}
+
+def test_ast_merge_dict_nesed_1_append():
+    a = ast.parse(r"foo={'level0': {'a':0}}")
+    b = ast.parse(r"foo={'level0': {'b':'must_be_there'}}")
+    merged = ast_to_dict(merge(a, base=b))
+    assert "foo" in merged
+    assert merged["foo"].get('level0') == {'a':0,'b':'must_be_there'}
 
 def test_ast_compare():
     assert compare(ast.Constant("a"), ast.Constant("a"))

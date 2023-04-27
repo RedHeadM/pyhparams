@@ -53,13 +53,20 @@ def _merge_dict(target: ast.Dict, base: ast.Dict) -> ast.Dict:
     base_key_value = dict(zip(base.keys, base.values))
     keys_merged = []
     values_merged = []
+    # TODO: fix this fuktion 
+    def _get(ast_dict, key):
+        for k,v in ast_dict.items():
+            if compare(k,key):
+                return v
+        return None
+
     for k, v in zip(target.keys, target.values):
         if k is None:
             continue
         assert isinstance(k, ast.Constant), f'dict key must be const {ast.dump(k)}'
         keys_merged.append(k)
         
-        if (same_value_base := base_key_value.get(k)) is not None and \
+        if (same_value_base := _get(base_key_value, k)) is not None and \
              isinstance(same_value_base, ast.Dict) and isinstance(v, ast.Dict):
                 # merge dict
                 values_merged.append(_merge_dict(v, same_value_base))
@@ -68,8 +75,6 @@ def _merge_dict(target: ast.Dict, base: ast.Dict) -> ast.Dict:
             values_merged.append(v)
         print(f"target with key {ast.dump(k)} value {ast.dump(v)}")
     # add 
-    # assert compare_ast(ast.Constant("asd"), ast.Constant("asd"))
-    assert len(keys_merged) ==2
     for k_base, v_base in base_key_value.items():
         if k_base is None:
             continue
