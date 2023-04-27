@@ -73,3 +73,14 @@ val = pyhparams.PARAM_SUBSTITUTE("foo")
     c = extractor.visit(ast.parse(c))
     assert isinstance(extractor.collected_args[0], ast.Constant)
     assert extractor.collected_args[0].value =="foo"
+
+def test_ast_merge_dict_replace():
+    a = r"foo={'x': 1,'y':2}"
+    b = r"foo={'x': 3,'y':4}"
+    # assuming ast.Attribute
+    # Assign(targets=[Name(id='FOO3', ctx=Store())], value=Call(func=Attribute(value=Name(id='pyhparams', ctx=Load()), attr='PARAM_SUBSTITUTE', ctx=Load()), args=[Constant(value='foo')], keywords=[]))
+    extractor = AstLoadClassCallArgsExtrator("pyhparams","PARAM_SUBSTITUTE")
+    c = extractor.visit(ast.parse(c))
+    assert isinstance(extractor.collected_args[0], ast.Constant)
+    assert extractor.collected_args[0].value =="foo"
+

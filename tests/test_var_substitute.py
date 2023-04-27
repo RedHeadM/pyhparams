@@ -3,15 +3,15 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 import tempfile
-from pyhparams.data_class import PARAM_SUBSTITUTE
-
-# TODO: move to func
-@contextmanager
-def config_file(content : str, suffix :str = ".py") -> Iterator[Path]:
-    with tempfile.NamedTemporaryFile(mode="w+", suffix=suffix) as tmp_file:
-        print(content, file=tmp_file, end='') 
-        tmp_file.flush()
-        yield Path(str(tmp_file.name))
+# from pyhparams.data_class import PARAM_SUBSTITUTE
+#
+# # TODO: move to func
+# @contextmanager
+# def config_file(content : str, suffix :str = ".py") -> Iterator[Path]:
+#     with tempfile.NamedTemporaryFile(mode="w+", suffix=suffix) as tmp_file:
+#         print(content, file=tmp_file, end='') 
+#         tmp_file.flush()
+#         yield Path(str(tmp_file.name))
 
 
 # def test_tmp_conf_one_multi_line():

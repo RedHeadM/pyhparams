@@ -36,7 +36,6 @@ class AstLoadClassCallArgsExtrator(ast.NodeTransformer):
                 self.collected_args.extend(node.args)
         return node
 
-
     def visit_Assign(self, node):
         # visit all Call create for assignment with visit_Call
         return self.generic_visit(node)
