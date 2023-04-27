@@ -1,8 +1,9 @@
 import ast
+import sys
 import itertools
 from contextlib import redirect_stdout
 from sys import modules
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 def ast_to_dict(tree: ast.Module)-> Dict[str,Any]:
     ''' runs ast modules and exports local and global var at top level to dict '''
@@ -110,6 +111,7 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
 
     base_assigments_id_merged: List[str] = []
     fix_missing_locations_needed = False
+    base_imports = get_imports(base) 
 
     for i, stm in enumerate(target.body):
         if not isinstance(stm,ast.Assign):
@@ -138,6 +140,10 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
         assert isinstance(stm_base.targets[0], ast.Name)
         if stm_base.targets[0].id not in  base_assigments_id_merged:
             target.body.append(stm_base)
+    # add base imports to target at top
+    # TODO: check for same imports
+    for stm_import in base_imports:
+        target.body.insert(0, stm_import)
     if fix_missing_locations_needed:
         ast.fix_missing_locations(target)
     return target
@@ -187,6 +193,17 @@ class AstLoadClassCallArgsExtrator(ast.NodeTransformer):
 
 def has_multi_name_assigment(tree: ast.Module) -> bool:
     return True
+
+def unparse(tree: ast.Module):
+    if sys.version_info[0] == 3 and sys.version_info[1] > 9 :
+        return str(ast.unparse(tree)) 
+
+def get_imports(codes) -> List[Union[ast.Import, ast.ImportFrom]]:
+    stm_imports = []
+    for i, stm in enumerate(codes.body):
+        if isinstance(stm, (ast.Import,ast.ImportFrom)):
+            stm_imports.append(stm)
+    return stm_imports
 
 if __name__ == '__main__':
 

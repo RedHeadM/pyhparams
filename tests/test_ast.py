@@ -1,5 +1,7 @@
 import ast 
-from pyhparams.ast import ast_to_dict, AstLoadClassCallArgsExtrator, merge,compare
+
+from pathlib import Path
+from pyhparams.ast import ast_to_dict, AstLoadClassCallArgsExtrator, merge,compare, get_imports
 
 def test_ast_to_dict_str():
     c = r'var1="foo"'
@@ -11,6 +13,21 @@ def test_ast_to_dict_dict():
     d = ast_to_dict(ast.parse(c))
     assert  d.get('var1').get('foo') == 12
 
+
+def test_ast_imports_none():
+    c = r'var1="foo"'
+    d = get_imports(ast.parse(c))
+    assert  len(d) ==0
+
+def test_ast_imports():
+    c = r'''
+bar = 3
+import sys
+from pathlib import Path
+foo = 3
+'''
+    d = get_imports(ast.parse(c))
+    assert  len(d) ==2
 
 def test_ast_extract_class_values():
     c = r'''
@@ -124,6 +141,18 @@ def test_ast_merge_dict_nesed_1_append():
     merged = ast_to_dict(merge(a, base=b))
     assert "foo" in merged
     assert merged["foo"].get('level0') == {'a':0,'b':'must_be_there'}
+
+def test_ast_merge_dict_with_import_in_target():
+    a = ast.parse(r"import pathlib; foo=pathlib.Path('a')")
+    b = ast.parse(r"bar=pathlib.Path('a')")
+    merged = ast_to_dict(merge(a, base=b))
+    assert merged.get("foo") == Path('a')
+
+def test_ast_merge_dict_with_import_in_base():
+    a = ast.parse(r"bar=pathlib.Path('a')")
+    b = ast.parse(r"import pathlib; foo=pathlib.Path('a')")
+    merged = ast_to_dict(merge(a, base=b))
+    assert merged.get("foo") == Path('a')
 
 def test_ast_compare():
     assert compare(ast.Constant("a"), ast.Constant("a"))
