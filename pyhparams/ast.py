@@ -120,12 +120,6 @@ def _is_dataclass_assign(assign: ast.Assign, imports: List[ast.stmt]) -> bool:
             raise ValueError("check is dataclass")
     else:
         return False
-
-
-
-# Assign(targets=[Name(id='is_data_class_attr', ctx=Store())], value=Call(func=Name(id='is_dataclass', ctx=Load()), args=[Attribute(value=Name(id='pyhparams', ctx=Load()), attr='PARAM_SUBSTITUTE', ctx=Load())], keywords=[]))
-#
-# Assign(targets=[Name(id='is_dataclass_return', ctx=Store())], value=Call(func=Name(id='is_dataclass'), args=[Attribute(value=Name(id='helper', ctx=Load()), attr='TestParams', ctx=Load())], keywords=[]))
     is_dataclass_call = ast.Call(func=ast.Name(id='is_dataclass', ctx=ast.Load()), 
                         args=is_dataclass_args, keywords=[])
 
@@ -157,7 +151,7 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
 
     base_assigments_id_merged: List[str] = []
     fix_missing_locations_needed = False
-    all_import = get_imports(base).extend(target)
+    # all_import = get_imports(base).extend(target)
 
     for i, stm in enumerate(target.body):
         if not isinstance(stm,ast.Assign):

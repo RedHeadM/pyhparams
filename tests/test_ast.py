@@ -184,12 +184,21 @@ def test_ast_is_data_class_assing():
     # pass body to have imports with sys call correct
     assert _is_dataclass_assign(a.body[-1], imports=a.body[:-1])
 
+def test_ast_is_data_class_assing_from_import():
+    local_import_path = Path(__file__).parent.resolve()
+    sys_path = f'import sys;sys.path.append("{local_import_path}")'
+    expr_helper_import = ast.parse(sys_path)
+    a = ast.parse(f"{sys_path};from helper import TestParams; to_be_merged=TestParams(x=10,y=20)")
+
+    # pass body to have imports with sys call correct
+    assert _is_dataclass_assign(a.body[-1], imports=a.body[:-1])
+
 def test_ast_is_data_class_assing_none():
 
     a = ast.parse(r"import pathlib; foo=pathlib.Path('a'); bar =2")
 
-    for stmt in  a.body:
-        assert not _is_dataclass_assign(stmt, imports=[])
+    assert not _is_dataclass_assign(a.body[-2], imports=[a.body[0]])
+    assert not _is_dataclass_assign(a.body[-1], imports=[a.body[0]])
 
 
 def test_ast_merge_dataclass_merge():
