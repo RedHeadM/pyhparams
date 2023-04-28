@@ -35,6 +35,7 @@ def _get_same_assign(target: ast.Assign, base: List[ast.Assign] ) -> Optional[as
     return None
 
 def compare(node1, node2):
+    ## TODO: simpler func here
     if type(node1) is not type(node2):
         return False
     if isinstance(node1, ast.AST):
@@ -74,8 +75,7 @@ def _merge_dict(target: ast.Dict, base: ast.Dict) -> ast.Dict:
         else:
             # keep value 
             values_merged.append(v)
-        print(f"target with key {ast.dump(k)} value {ast.dump(v)}")
-    # add 
+    # add not merged base items
     for k_base, v_base in base_key_value.items():
         if k_base is None:
             continue
@@ -85,7 +85,6 @@ def _merge_dict(target: ast.Dict, base: ast.Dict) -> ast.Dict:
             # not merged before and not in target
             keys_merged.append(k_base)
             values_merged.append(v_base)
-            print(f"-- base with {ast.dump(k_base)} value {ast.dump(v_base)}")
 
     return ast.Dict(keys =keys_merged,  values =values_merged)
 
@@ -116,12 +115,11 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
     for i, stm in enumerate(target.body):
         if not isinstance(stm,ast.Assign):
             continue
-        # merge or add assignments 
-        print(f"DEBUG: _get_same_assign stm: {ast.dump(stm)}") # __AUTO_GENERATED_PRINT_VAR__
+        # merge or add assignment
 
-        assert len(stm.targets) == 1, "not implemented"
+        assert len(stm.targets) == 1, "not implemented multiple targets"
         assert isinstance(stm.targets[0], ast.Name)
-
+        # merge target dics with base
         if (same_base_assign := _get_same_assign(stm, base_assigments)) is not None:
 
             base_assigments_id_merged.append(stm.targets[0].id)
@@ -132,13 +130,10 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
                 AstAssinTransform(stm_merged).visit(target)
                 fix_missing_locations_needed = True
 
-            else: 
-                # replace value py not merging later
-                pass
-    # TODO add merge
+    # add base assigments which are not in target and not merge before
     for stm_base in base_assigments:
         assert isinstance(stm_base.targets[0], ast.Name)
-        if stm_base.targets[0].id not in  base_assigments_id_merged:
+        if stm_base.targets[0].id not in base_assigments_id_merged:
             target.body.append(stm_base)
     # add base imports to target at top
     # TODO: check for same imports
