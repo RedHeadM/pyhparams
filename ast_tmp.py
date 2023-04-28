@@ -151,9 +151,8 @@ for i, stm in enumerate(codes.body):
 #         print(f"{i}:\n{ast.dump(stm)}")
 #     # if isinstance(stm, ast.Import):
 #     #     dataclass_test += stm
-    if isinstance(stm, ast.Assign):
-
-        if isinstance(stm, ast.Assign):
+    # if isinstance(stm, ast.Assign):
+    #     if isinstance(stm, ast.Assign):
 
 
 # for i, stm in enumerate(codes.body):
