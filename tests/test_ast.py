@@ -175,19 +175,19 @@ def test_ast_merge_dataclass_append():
     assert merge_expr.get("b").x == 1
     assert merge_expr.get("b").y == 2
 
-# def test_ast_merge_dataclass_merge():
-#     local_import_path = Path(__file__).parent.resolve()
-#     sys_path = f'import sys;sys.path.append("{local_import_path}")'
-#     expr_helper_import = ast.parse(sys_path)
-#     a = ast.parse(f"{sys_path};import helper; to_be_merged=helper.TestParams(x=10,y=20)")
-#     b = ast.parse(f"{sys_path};import helper; to_be_merged=helper.TestParams(x=1,y=2)")
-#     merge_expr = ast_to_dict(merge(a, base=b))
-#     # assert merge_expr.get("a") == TestParams(x=10,y=20) # TODO
-#     assert merge_expr.get("to_be_merged").x == 10
-#     assert merge_expr.get("to_be_merged").y == 10
-#     assert False
-#
-#
+def test_ast_merge_dataclass_merge():
+    local_import_path = Path(__file__).parent.resolve()
+    sys_path = f'import sys;sys.path.append("{local_import_path}")'
+    expr_helper_import = ast.parse(sys_path)
+    a = ast.parse(f"{sys_path};import helper; to_be_merged=helper.TestParams(x=10,y=20)")
+    b = ast.parse(f"{sys_path};import helper; to_be_merged=helper.TestParams(x=1,y=2)")
+    merge_expr = ast_to_dict(merge(a, base=b))
+    # assert merge_expr.get("a") == TestParams(x=10,y=20) # TODO
+    assert merge_expr.get("to_be_merged").x == 10
+    assert merge_expr.get("to_be_merged").y == 10
+    assert False
+
+
 # TODO: to not allow syy path valls for usr
 
 # def test_ast_multi_assign_toplevel_yes():
