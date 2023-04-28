@@ -3,6 +3,7 @@ import sys
 import itertools
 from contextlib import redirect_stdout
 from sys import modules
+from types import ModuleType
 from typing import Any, Dict, List, Optional, Union
 
 def ast_to_dict(tree: ast.Module)-> Dict[str,Any]:
@@ -10,12 +11,13 @@ def ast_to_dict(tree: ast.Module)-> Dict[str,Any]:
     codeobj = compile(tree, '', mode='exec')
     # Support load global variable in nested function of the
     # config.
-    global_locals_var = {}
+    global_locals_var = {} #{"__name__":""}
     eval(codeobj,global_locals_var,global_locals_var)
+
     cfg_dict = {
         key: value
         for key, value in global_locals_var.items()
-        if (not key.startswith('__'))
+        if (not key.startswith('__')) and (not isinstance(value,ModuleType))
     }
     return cfg_dict
 
@@ -104,6 +106,14 @@ def _merge_assign_dict(target: ast.Assign, base: ast.Assign) -> ast.Assign:
 def _is_dict_assign(stmt: ast.stmt) -> bool:
     return isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Dict)
 
+def _body_idx_after_last_import(target: ast.Module) -> int: 
+    for i, stmt in  enumerate(reversed(target.body)):
+        if _is_import(stmt):
+            return len(target.body)-i 
+    return 0
+        
+
+
 def merge(target: ast.Module, base: ast.Module) -> ast.Module:
     # TODO merge imports
     base_assigments = [s for s in base.body if isinstance(s, ast.Assign)]
@@ -130,17 +140,31 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
                 AstAssinTransform(stm_merged).visit(target)
                 fix_missing_locations_needed = True
 
+    # add base imports to target at top via revered order, skip merged assignments
+    # for stm_import in base_imports:
+    #     target.body.insert(0, stm_import)
     # add base assigments which are not in target and not merge before
-    for stm_base in base_assigments:
-        assert isinstance(stm_base.targets[0], ast.Name)
-        if stm_base.targets[0].id not in base_assigments_id_merged:
-            target.body.append(stm_base)
-    # add base imports to target at top
+
+    for stm_base in reversed(base.body):
+        # if _is_import(stm_base):
+        #     continue
+        # TODO: perf iter to get idx can be avoided
+        target_idx_blow_import = _body_idx_after_last_import(target)
+        if isinstance(stm_base, ast.Assign) :
+            assert isinstance(stm_base.targets[0], ast.Name)
+            if stm_base.targets[0].id not in base_assigments_id_merged:
+                target.body.insert(target_idx_blow_import, stm_base)
+        else:
+            target.body.insert(target_idx_blow_import, stm_base)
     # TODO: check for same imports
-    for stm_import in base_imports:
-        target.body.insert(0, stm_import)
     if fix_missing_locations_needed:
         ast.fix_missing_locations(target)
+
+    for i, c in enumerate(target.body):
+        print(f"{i}:\n{ast.dump(c)}")
+    #
+    # for i, c in enumerate(base.body):
+    #     print(f"BASE {i}:\n{ast.dump(c)}")
     return target
 
 class AstAssinTransform(ast.NodeTransformer):
@@ -193,10 +217,13 @@ def unparse(tree: ast.Module):
     if sys.version_info[0] == 3 and sys.version_info[1] > 9 :
         return str(ast.unparse(tree)) 
 
-def get_imports(codes) -> List[Union[ast.Import, ast.ImportFrom]]:
+def _is_import(stmt: ast.stmt) -> bool:
+    return isinstance(stmt, (ast.Import,ast.ImportFrom))
+
+def get_imports(codes: ast.Module) -> List[Union[ast.Import, ast.ImportFrom]]:
     stm_imports = []
     for i, stm in enumerate(codes.body):
-        if isinstance(stm, (ast.Import,ast.ImportFrom)):
+        if _is_import(stm):
             stm_imports.append(stm)
     return stm_imports
 
