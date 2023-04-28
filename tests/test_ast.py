@@ -1,7 +1,7 @@
 import ast 
 
 from pathlib import Path
-from pyhparams.ast import ast_to_dict, AstLoadClassCallArgsExtrator, merge,compare, get_imports
+from pyhparams.ast import ast_to_dict, AstLoadClassCallArgsExtrator, merge,compare, get_imports, _is_dataclass_assign
 from .helper import TestParams
 
 def test_ast_to_dict_str():
@@ -174,6 +174,23 @@ def test_ast_merge_dataclass_append():
 
     assert merge_expr.get("b").x == 1
     assert merge_expr.get("b").y == 2
+
+def test_ast_is_data_class_assing():
+    local_import_path = Path(__file__).parent.resolve()
+    sys_path = f'import sys;sys.path.append("{local_import_path}")'
+    expr_helper_import = ast.parse(sys_path)
+    a = ast.parse(f"{sys_path};import helper; to_be_merged=helper.TestParams(x=10,y=20)")
+
+    # pass body to have imports with sys call correct
+    assert _is_dataclass_assign(a.body[-1], imports=a.body[:-1])
+
+def test_ast_is_data_class_assing_none():
+
+    a = ast.parse(r"import pathlib; foo=pathlib.Path('a'); bar =2")
+
+    for stmt in  a.body:
+        assert not _is_dataclass_assign(stmt, imports=[])
+
 
 def test_ast_merge_dataclass_merge():
     local_import_path = Path(__file__).parent.resolve()

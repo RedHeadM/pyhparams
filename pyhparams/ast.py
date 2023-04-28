@@ -106,10 +106,47 @@ def _merge_assign_dict(target: ast.Assign, base: ast.Assign) -> ast.Assign:
 def _is_dict_assign(stmt: ast.stmt) -> bool:
     return isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Dict)
 
+def _is_dataclass_assign(assign: ast.Assign, imports: List[ast.stmt]) -> bool:
+    ast_m = ast.parse("from dataclasses import is_dataclass")
+    is_dataclass_args =None
+    # TODO:clean up
+    if isinstance(assign.value, ast.Call):
+        assign_call = assign.value.func
+        if isinstance(assign_call, ast.Name):
+            is_dataclass_args = [assign_call] 
+        elif isinstance(assign_call, ast.Attribute):
+            is_dataclass_args = [assign_call] 
+        else: 
+            raise ValueError("check is dataclass")
+    else:
+        return False
+
+
+
+# Assign(targets=[Name(id='is_data_class_attr', ctx=Store())], value=Call(func=Name(id='is_dataclass', ctx=Load()), args=[Attribute(value=Name(id='pyhparams', ctx=Load()), attr='PARAM_SUBSTITUTE', ctx=Load())], keywords=[]))
+#
+# Assign(targets=[Name(id='is_dataclass_return', ctx=Store())], value=Call(func=Name(id='is_dataclass'), args=[Attribute(value=Name(id='helper', ctx=Load()), attr='TestParams', ctx=Load())], keywords=[]))
+    is_dataclass_call = ast.Call(func=ast.Name(id='is_dataclass', ctx=ast.Load()), 
+                        args=is_dataclass_args, keywords=[])
+
+    is_dataclass_result_assign_var_name = 'is_dataclass_return'
+    is_dataclass_result_assign = ast.Assign(targets=[ast.Name(id=is_dataclass_result_assign_var_name, 
+            ctx=ast.Store())], value=is_dataclass_call)   
+    ast_m.body.extend(imports)
+    ast_m.body.append(is_dataclass_result_assign)
+
+    ast.fix_missing_locations(ast_m)
+
+    for i, c in enumerate(ast_m.body):
+        print(f"{i}:\n{ast.dump(c)}")
+    return ast_to_dict(ast_m)[is_dataclass_result_assign_var_name]
+
+
 def _body_idx_after_last_import(target: ast.Module) -> int: 
     for i, stmt in  enumerate(reversed(target.body)):
         if _is_import(stmt):
             return len(target.body)-i 
+
     return 0
         
 
@@ -120,7 +157,7 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
 
     base_assigments_id_merged: List[str] = []
     fix_missing_locations_needed = False
-    base_imports = get_imports(base) 
+    all_import = get_imports(base).extend(target)
 
     for i, stm in enumerate(target.body):
         if not isinstance(stm,ast.Assign):
@@ -139,6 +176,7 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
                 # TODO: check im manipulation while iter is ok
                 AstAssinTransform(stm_merged).visit(target)
                 fix_missing_locations_needed = True
+            # elif _is_dict_assign(stm) and _is_dict_assign(same_base_assign):
 
     # add base imports to target at top via revered order, skip merged assignments
     # for stm_import in base_imports:

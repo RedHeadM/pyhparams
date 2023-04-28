@@ -25,10 +25,14 @@ class DataClassSimple:
 myVar = 1
 myDict = {'a':2}
 mydataclass = DataClassSimple(1)
-myDict = {'a':2,'nested1':{"foo":1,"nestd2":{'d':21}}}
-# is_data_class = is_dataclass(PARAM_SUBSTITUTE)
+# myDict = {'a':2,'nested1':{"foo":1,"nestd2":{'d':21}}}
 
-# is_data_class = is_dataclass(pyhparams.PARAM_SUBSTITUTE)
+FOO1 = PARAM_SUBSTITUTE("foo")
+
+is_data_class = is_dataclass(PARAM_SUBSTITUTE)
+
+FOO3_attr = pyhparams.PARAM_SUBSTITUTE("foo")
+is_data_class_attr = is_dataclass(pyhparams.PARAM_SUBSTITUTE)
 '''
 
 
@@ -183,19 +187,19 @@ def get_imports(codes) -> List[Union[ast.Import, ast.ImportFrom]]:
     return stm_imports
 
 
-# def is_dataclass(importsstm, class_names: List[Union[ast.Name,ast.Attribute]]):
-#     ast_m = ast.parse("from dataclasses import is_dataclass")
-#     # redo same imports
-#     for stm in importsstm:
-#             ast_m.body.append(stm)
-#     # append call to check if is dataclass 
-#     for class_name in class_names:
-#         # call function to check if is data class
-#         check_call = ast.Assign(targets=[ast.Name(id=class_name, 
-#                 ctx=ast.Store())], value=ast.Call(func=ast.Name(id='is_dataclass', 
-#                             tx=ast.Load()), args=[ast.Name(id=class_name, ctx=ast.Load())], keywords=[]))   
-#         ast_m.body.append(check_call)
-#     return ast_to_dict(codes)
+def is_dataclass(importsstm, class_names: List[Union[ast.Name,ast.Attribute]]):
+    ast_m = ast.parse("from dataclasses import is_dataclass")
+    # redo same imports
+    for stm in importsstm:
+            ast_m.body.append(stm)
+    # append call to check if is dataclass 
+    for class_name in class_names:
+        # call function to check if is data class
+        check_call = ast.Assign(targets=[ast.Name(id=class_name, 
+                ctx=ast.Store())], value=ast.Call(func=ast.Name(id='is_dataclass', 
+                            tx=ast.Load()), args=[ast.Name(id=class_name, ctx=ast.Load())], keywords=[]))   
+        ast_m.body.append(check_call)
+    return ast_to_dict(codes)
 
     # print(ast_to_dict(codes))
 # if sys.version_info[0] == 3 and sys.version_info[1] > 9 :
