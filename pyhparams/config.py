@@ -66,11 +66,8 @@ def _dict_from_file(filename: str):
             for key, value in global_locals_var.items()
             if (key not in ori_keys and not key.startswith('__'))
         }
-    elif filename.endswith(('.yml', '.yaml', '.json')):
-        raise NotImplementedError(f"file not supported: {filename}")
-        # cfg_dict = load(temp_config_file.name)
     else:
-        raise ValueError(f"file not supported: {filename}")
+        raise NotImplementedError(f"file not supported: {filename}")
     # rm python file dics
     for key, value in list(cfg_dict.items()):
         if isinstance(value, (types.FunctionType, types.ModuleType)):
