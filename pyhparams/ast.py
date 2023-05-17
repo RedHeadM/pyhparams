@@ -102,15 +102,16 @@ def _merge_assign_dict(target: ast.Assign, base: ast.Assign) -> ast.Assign:
 
     assert isinstance(target.value, ast.Call)
     assert isinstance(base.value, ast.Call)
-    target.value= _merge_dict(target.value,base.value)
+    target.value= _merge_dict(target.value, base.value)
     return target
 # {} Dict key[list[cost]] value
 # dict Call keywords=[keyword(arg='name', value=Constant(value='foo'))]
 
 # dc only kwargs keywords=[keyword(arg='name', value=Constant(value='foo'))]
 
-def _is_mergeable(target: ast.stmt, base: ast.stmt);
-    ''' if dict oder dataclass''' 
+def _is_mergeable(target: ast.stmt, base: ast.stmt) -> Optional:
+    ''' if dict (can be ast.Dict ast.Call to dict) oder dataclass''' 
+    pass
 
 def _merge_keyword(target: List[ast.keyword], base: List[ast.keyword]) -> List[ast.keyword]:
     target_kw = {k.arg: k.value for k in target}
@@ -205,7 +206,6 @@ def _body_idx_after_last_import(target: ast.Module) -> int:
 
 
 def merge(target: ast.Module, base: ast.Module) -> ast.Module:
-    # TODO merge imports
     base_assigments = [s for s in base.body if isinstance(s, ast.Assign)]
 
     base_assigments_id_merged: List[str] = []
@@ -214,9 +214,6 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
     imports_base = get_imports(target)
     imports_target = get_imports(base)
 
-    for i, stm in enumerate(target.body):
-        if not isinstance(stm,ast.Assign):
-            continue
     assignments_stmt = (a for a in target.body if isinstance(a, ast.Assign))
     for i, stm in enumerate(assignments_stmt):
         # merge or add assignment
@@ -234,7 +231,7 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
                 AstAssinTransform(stm_merged).visit(target)
                 fix_missing_locations_needed = True
             elif _is_dataclass_assign(stm, imports_target) and _is_dataclass_assign(same_base_assign,imports_base):
-                assert False
+                raise NotImplementedError("merge dataclass_assign")
 
     # add base imports to target at top via revered order, skip merged assignments
     # for stm_import in base_imports:
@@ -257,7 +254,7 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
         ast.fix_missing_locations(target)
 
     for i, c in enumerate(target.body):
-        print(f"{i}:\n{ast.dump(c)}")
+        print(f"DEBUG print {i}:\n{ast.dump(c)}")
     #
     # for i, c in enumerate(base.body):
     #     print(f"BASE {i}:\n{ast.dump(c)}")
