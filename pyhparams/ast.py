@@ -217,6 +217,8 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
     for i, stm in enumerate(target.body):
         if not isinstance(stm,ast.Assign):
             continue
+    assignments_stmt = (a for a in target.body if isinstance(a, ast.Assign))
+    for i, stm in enumerate(assignments_stmt):
         # merge or add assignment
 
         assert len(stm.targets) == 1, "not implemented multiple targets"
