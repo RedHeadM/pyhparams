@@ -197,6 +197,8 @@ def has_multi_name_assigment(tree: ast.Module) -> bool:
 def unparse(tree: ast.Module):
     if sys.version_info[0] == 3 and sys.version_info[1] > 9 :
         return str(ast.unparse(tree)) 
+    else: 
+        raise NotImplementedError("ast unparse for python version")
 
 def get_imports(codes) -> List[Union[ast.Import, ast.ImportFrom]]:
     stm_imports = []
