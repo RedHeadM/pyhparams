@@ -113,9 +113,9 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
     fix_missing_locations_needed = False
     base_imports = get_imports(base) 
 
-    for i, stm in enumerate(target.body):
-        if not isinstance(stm,ast.Assign):
-            continue
+    # merge assignments
+    assignments_stmt = (a for a in target.body if isinstance(a, ast.Assign))
+    for i, stm in enumerate(assignments_stmt):
         # merge or add assignments 
         print(f"DEBUG: _get_same_assign stm: {ast.dump(stm)}") # __AUTO_GENERATED_PRINT_VAR__
 
@@ -135,18 +135,28 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
             else: 
                 # replace value py not merging later
                 pass
-    # TODO add merge
-    for stm_base in base_assigments:
-        assert isinstance(stm_base.targets[0], ast.Name)
-        if stm_base.targets[0].id not in  base_assigments_id_merged:
-            target.body.append(stm_base)
+
     # add base imports to target at top
     # TODO: check for same imports
     for stm_import in base_imports:
         target.body.insert(0, stm_import)
+    # add stmt which are not merged
+    idx_after_import = get_idx_last_import(target.body)+1
+    for stm_base in base_assigments:
+        assert isinstance(stm_base.targets[0], ast.Name)
+        if stm_base.targets[0].id not in base_assigments_id_merged:
+            target.body.insert(idx_after_import,stm_base)
+            # target.body.append(stm_base) # TODO: append aster inports
     if fix_missing_locations_needed:
         ast.fix_missing_locations(target)
     return target
+
+def get_idx_last_import(all_stmt: List[ast.stmt])-> int:
+    for i, s  in enumerate(all_stmt):
+        if _is_import(s):
+            return i 
+    return 0
+
 
 class AstAssinTransform(ast.NodeTransformer):
     ''' extracts args for class a call'''
@@ -200,10 +210,13 @@ def unparse(tree: ast.Module):
     else: 
         raise NotImplementedError("ast unparse for python version")
 
+def _is_import(stmt: ast.stmt) -> bool:
+    return isinstance(stmt, (ast.Import,ast.ImportFrom))
+
 def get_imports(codes) -> List[Union[ast.Import, ast.ImportFrom]]:
     stm_imports = []
     for i, stm in enumerate(codes.body):
-        if isinstance(stm, (ast.Import,ast.ImportFrom)):
+        if _is_import(stm):
             stm_imports.append(stm)
     return stm_imports
 
@@ -212,7 +225,7 @@ if __name__ == '__main__':
     #  example for some development debug print
     c = r'''
 BAR = 1
-BAR = {"HHHAALLO": lataclasses.MISSING}
+BAR = {"HHHAALLO": 1./137}
 '''
 
     codes = ast.parse(c)
