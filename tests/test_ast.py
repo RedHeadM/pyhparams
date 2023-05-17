@@ -202,15 +202,14 @@ def test_ast_is_data_class_assing_none():
 
 
 def test_ast_merge_dataclass_merge():
-    local_import_path = Path(__file__).parent.resolve()
-    sys_path = f'import sys;sys.path.append("{local_import_path}")'
-    expr_helper_import = ast.parse(sys_path)
-    a = ast.parse(f"{sys_path};import helper; to_be_merged=helper.TestParams(x=10,y=20)")
-    b = ast.parse(f"{sys_path};import helper; to_be_merged=helper.TestParams(x=1,y=2)")
+    from pyhparams.utils import UtilsTestParams
+    to_be_merged=UtilsTestParams(x=10,y=20)
+    a = ast.parse(r"import pyhparams; to_be_merged=pyhparams.utils.UtilsTestParams(x=10)")
+    b = ast.parse(r"import pyhparams; to_be_merged=pyhparams.utils.UtilsTestParams(x=10,y=20)")
     merge_expr = ast_to_dict(merge(a, base=b))
     # assert merge_expr.get("a") == TestParams(x=10,y=20) # TODO
     assert merge_expr.get("to_be_merged").x == 10
-    assert merge_expr.get("to_be_merged").y == 10
+    assert merge_expr.get("to_be_merged").y == 20, 'default is not taken form base'
     assert False
 
 
