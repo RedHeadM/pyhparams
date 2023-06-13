@@ -90,83 +90,106 @@ def _merge_dict(target: ast.Dict, base: ast.Dict) -> ast.Dict:
 
     return ast.Dict(keys =keys_merged,  values =values_merged)
 
-# def _merge_dict(target: ast.Dict, base: ast.Dict) -> ast.Dict:
-
 def _merge_assign_dict(target: ast.Assign, base: ast.Assign) -> ast.Assign:
     # check if both are expected dict type
     for s in (target, base):
         assert isinstance(s, ast.Assign)
         assert len(s.targets) == 1
         assert isinstance(s.targets[0], ast.Name)
-        # assert isinstance(s.value, ast.Dict)
 
-    assert isinstance(target.value, ast.Call)
-    assert isinstance(base.value, ast.Call)
-    target.value= _merge_dict(target.value,base.value)
+    target.value = _merge_dict_call(target.value,base.value)
     return target
-# {} Dict key[list[cost]] value
-# dict Call keywords=[keyword(arg='name', value=Constant(value='foo'))]
 
-# dc only kwargs keywords=[keyword(arg='name', value=Constant(value='foo'))]
-
-def _is_mergeable(target: ast.stmt, base: ast.stmt);
-    ''' if dict oder dataclass''' 
+def _merge_dict_call(target: ast.expr, base: ast.expr) -> ast.Call:
+    kw_base  = _unpack_keywords(base)
+    kw_target  = _unpack_keywords(target)
+    assert kw_base is not None and kw_target is not None # TODO 
+    kw_merged = _merge_keyword(kw_target, kw_base)
+    # allway map ast.Dict to ast.Call with function dict
+    return ast.Call(func=ast.Name(id='dict', ctx=ast.Load()), args=[], keywords=kw_merged) 
 
 def _merge_keyword(target: List[ast.keyword], base: List[ast.keyword]) -> List[ast.keyword]:
     target_kw = {k.arg: k.value for k in target}
     base_kw = {k.arg: k.value for k in base}
-    merged_kew = dict()
-    # TODO: fix this fuktion 
-    # def _get(ast_dict, key):
-    #     for k,v in ast_dict.items():
-    #         if compare(k,key):
-    #             return v
-    #     return None
+    merged_kew = dict(base_kw)
+    # assert False, f"{[ast.dump(k) for k in target]}"
 
     for k, v in target_kw.items():
-        if k is None:
-            continue
-        assert isinstance(k, ast.Constant), f'dict key must be const {ast.dump(k)}'
-        keys_merged.append(k)
+        assert k is not None
+        assert isinstance(k, (ast.Constant, str)), f'dict key must be const got: {ast.dump(k)}'
         
-        if (same_value_base := base_kw.get( k)) is not None and \
-             isinstance(same_value_base, ast.Dict) and isinstance(v, ast.Dict):
-                # merge dict
-                merged_kew[k]=_merge_dict(v, same_value_base)
+        if (same_value_base := base_kw.get(k)) is not None and \
+             _call_is_dict(same_value_base) and _call_is_dict(v):
+                # recusive call for now
+                merged_kew[k] = _merge_dict_call(v, same_value_base) 
+            # TODO: nested dataclasses
         else:
-            # keep value 
-            merged_kew[k]=v
-    # add not merged base items
-    for k_base, v_base in base_key_value.items():
-        if k_base is None:
-            continue
-        if any((compare(k_base,s) for s in keys_merged ) ):
-            continue
-        else:
-            # not merged before and not in target
-            keys_merged.append(k_base)
-            values_merged.append(v_base)
+            # keep value from target
+            merged_kew[k] = v
+    return [ast.keyword(arg=k, value=v) for k, v in merged_kew.items()]
 
-    return ast.Dict(keys =keys_merged,  values =values_merged)
 
-def _merge_assign_data_class(target: ast.Assign, base: ast.Assign) -> ast.Assign:
-    # check if both are expected dict type
-    # for s in (target, base):
-    #     assert isinstance(s, ast.Assign)
-    #     assert len(s.targets) == 1
-    #     assert isinstance(s.targets[0], ast.Name)
-    #     # assert isinstance(s.value, ast.Dict)
-    #
-    # assert isinstance(target.value, ast.Dict)
-    # assert isinstance(base.value, ast.Dict)
-    # target.value= _merge_call(target.value,base.value)
-    return target
+# def _merge_assign_data_class(target: ast.Assign, base: ast.Assign) -> ast.Assign:
+#     # check if both are expected dict type
+#     # for s in (target, base):
+#     #     assert isinstance(s, ast.Assign)
+#     #     assert len(s.targets) == 1
+#     #     assert isinstance(s.targets[0], ast.Name)
+#     #     # assert isinstance(s.value, ast.Dict)
+#     #
+#     # assert isinstance(target.value, ast.Dict)
+#     # assert isinstance(base.value, ast.Dict)
+#     # target.value= _merge_call(target.value,base.value)
+#     return target
 
-def _is_dict_assign(stmt: ast.stmt) -> bool:
+def _call_is_dict(assign_value: ast.expr) -> bool:
+    ''' extract kwargs for dict call'''
+    match assign_value:
+        case ast.Call(
+            func=ast.Call(func=ast.Name(id='dict', ctx=ast.Load()),),
+        ):
+            return True
+        case ast.Dict():
+            return True
+        case _:
+            return False
+
+def _unpack_keywords(assign_value: ast.expr) -> Optional[List[ast.keyword]]:
+    ''' extract kwargs for dict call'''
+    match assign_value:
+        case ast.Call(
+            func=ast.Call(func=ast.Name(id='dict', ctx=ast.Load()),),
+        ):
+            assert assign_value.args is None 
+            return assign_value.keywords
+        case ast.Dict():
+            assert assign_value.values is not None
+            assert assign_value.keys is not None
+            # NOTE: caution a never use ast.keyword(args=... instead of ast.keyword(arg=....
+            return [ast.keyword(arg=_uppack_dict_key(k), value=v) for k, v in zip(assign_value.keys, assign_value.values) if k is not None]
+        case _:
+            return None
+
+def _uppack_dict_key(key: ast.expr) -> str:
+    match key:
+        case ast.Constant():
+            return key.value
+            # return strkey
+        case None:
+            raise ValueError(f'got none for key {ast.dump(key)}')
+        case _:
+            return key
+
+def _is_dict_assign(stmt: ast.Assign) -> bool:
     # TODO: Assign(targets=[Name(id='FOO3_attr', ctx=Store())], value=Call(func=Name(id='dict', ctx=Load()), args=[], keywords=[keyword(arg='name', value=Constant(value='foo'))]))
+    assert isinstance(stmt, ast.Assign)
+    return isinstance(stmt.value, ast.Dict) or _assign_is_dict_func_call(stmt)
+
+def _assign_is_dict_func_call(stmt: ast.stmt) -> bool:
     return isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Dict)
 
 def _is_dataclass_assign(assign: ast.Assign, imports: List[Union[ast.Import, ast.ImportFrom]]) -> bool:
+    ''' for assign check if the call is a dataclass by calling by using imports dataclasses.is_dataclass'''
     ast_m = ast.parse("from dataclasses import is_dataclass")
     is_dataclass_args =None
     # TODO:clean up
@@ -190,9 +213,9 @@ def _is_dataclass_assign(assign: ast.Assign, imports: List[Union[ast.Import, ast
     ast_m.body.append(is_dataclass_result_assign)
 
     ast.fix_missing_locations(ast_m)
+    # for i, c in enumerate(ast_m.body):
+    #     print(f"{i}:\n{ast.dump(c)}")
 
-    for i, c in enumerate(ast_m.body):
-        print(f"{i}:\n{ast.dump(c)}")
     return ast_to_dict(ast_m)[is_dataclass_result_assign_var_name]
 
 
@@ -223,13 +246,15 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
         assert isinstance(stm.targets[0], ast.Name)
         # merge target dics with base
         if (same_base_assign := _get_same_assign(stm, base_assigments)) is not None:
-
             base_assigments_id_merged.append(stm.targets[0].id)
             if _is_dict_assign(stm) and _is_dict_assign(same_base_assign):
                 # merge two dicts
                 stm_merged = _merge_assign_dict(stm, same_base_assign)
                 # TODO: check im manipulation while iter is ok
-                AstAssinTransform(stm_merged).visit(target)
+                print(f"stm_merged {i}:\n{ast.dump(stm_merged)}")
+                ast_trans = AstAssinTransform(stm_merged)
+                ast_trans.visit(target)
+                assert  ast_trans.num_replacement == 1
                 fix_missing_locations_needed = True
             elif _is_dataclass_assign(stm, imports_target) and _is_dataclass_assign(same_base_assign,imports_base):
                 assert False
@@ -265,7 +290,7 @@ class AstAssinTransform(ast.NodeTransformer):
     ''' extracts args for class a call'''
     def __init__(self, new_assign: ast.Assign):
         self.new_assign = new_assign
-
+        self.num_replacement = 0
         assert len(new_assign.targets) == 1
         assert isinstance(new_assign.targets[0], ast.Name)
 
@@ -276,6 +301,7 @@ class AstAssinTransform(ast.NodeTransformer):
 
         if isinstance(node.targets[0], ast.Name):
             if self.new_assign.targets[0] == node.targets[0]:
+                self.num_replacement +=1
                 return self.new_assign
         return node
 
