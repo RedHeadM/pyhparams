@@ -20,8 +20,26 @@ from pyhparams import ast as ast_helper
 
 BASE_KEY_ID = '_base_'
 # DELETE_KEY = '_delete_'
-# DEPRECATION_KEY = '_deprecation_'
 # RESERVED_KEYS = ['filename', 'text', 'pretty_text', 'env_variables']
+
+# from dataclasses import dataclass
+# # default config
+# @dataclass
+# class MLConfig():
+#     data_root:str = "" 
+#     @dataclass
+#     class Trainer():
+#         lr: float  = 0.001
+#         epochs: int = 1000
+#         # dataset = torch.dataset.MINIST(data_root= "$DATA_ROOT")
+#         dataset = torch.dataset.MINIST(data_root= Config.EXPAND_VAR("DATA_ROOT", str))
+#     trainer: Trainer = Trainer()
+#
+# # config py
+# _config_ = Config(
+#             trainer = Trainer(lr = 0.1, epochs =1)
+#         )
+#     
 
 
 
@@ -53,8 +71,9 @@ def _dict_from_file(filename: str) -> dict:
         expr_target = ast_helper.parse_file(filename)
         # codes = _RemoveAssignFromAST(BASE_KEY).visit(expr_target)
         base_files = ast_helper.extract_assign_base_files(expr_target, BASE_KEY_ID, imports= "from pathlib import Path") 
+        print(f"INFO: config loading target config: {filename}") # TODO: logging
         for base_file_name in base_files:
-            print(f"INFO: config mger {base_file_name}")
+            print(f"INFO: config merge with base: {base_file_name}")
             expr_base = ast_helper.parse_file(base_file_name)
             expr_target = ast_helper.merge(expr_target, base=expr_base)
         # Support load global variable in nested function of the
@@ -65,12 +84,6 @@ def _dict_from_file(filename: str) -> dict:
         # cfg_dict = load(temp_config_file.name)
     else:
         raise ValueError(f"file not supported: {filename}")
-    # rm python file dics
-    for key, value in list(cfg_dict.items()):
-        if isinstance(value, (types.FunctionType, types.ModuleType)):
-            cfg_dict.pop(key)
-    return cfg_dict
-
 
 class Config:
     @staticmethod
@@ -94,7 +107,7 @@ class Config:
         check_file_exist(filename)
         fileExtname = osp.splitext(filename)[1]
         if fileExtname not in ['.py', '.json', '.yaml', '.yml']:
-            raise OSError('Only py/yml/yaml/json type are supported now!')
+            raise OSError('Only py/yml/yaml/json type are not supported')
 
         # read config and get base files list
         dict_f = _dict_from_file(filename)
