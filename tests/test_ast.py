@@ -1,7 +1,7 @@
 import ast 
 
 from pathlib import Path
-from pyhparams.ast import ast_to_dict, AstLoadClassCallArgsExtrator, merge,compare, get_imports, _is_dataclass_assign
+from pyhparams.ast import ast_to_dict, AstLoadClassCallArgsExtrator, merge,compare, get_imports, _is_dataclass_assign, _unpack_keywords
 from .helper import TestParams
 
 def test_ast_to_dict_str():
@@ -200,20 +200,39 @@ def test_ast_is_data_class_assing_none():
     assert not _is_dataclass_assign(a.body[-2], imports=[a.body[0]])
     assert not _is_dataclass_assign(a.body[-1], imports=[a.body[0]])
 
+def test_unpack_dict_keywords():
+    expr = ast.Dict(keys=[ast.Constant(value='a'), ast.Constant(value='b')], 
+                    values=[ast.Constant(value=0), ast.Constant(value=1)])
+    kw = _unpack_keywords(expr)
+    assert kw is not None and len(kw) ==2 
+    assert compare(kw[0],ast.keyword(arg='a', value=ast.Constant(value=0)))
+    assert compare(kw[1],ast.keyword(arg='b', value=ast.Constant(value=1)))
 
-def test_ast_merge_dataclass_merge():
-    from pyhparams.utils import UtilsTestParams
-    to_be_merged=UtilsTestParams(x=10,y=20)
+def test_ast_merge_dataclass_merge_attribule_import():
     a = ast.parse(r"import pyhparams; to_be_merged=pyhparams.utils.UtilsTestParams(x=10)")
     b = ast.parse(r"import pyhparams; to_be_merged=pyhparams.utils.UtilsTestParams(x=10,y=20)")
     merge_expr = ast_to_dict(merge(a, base=b))
     # assert merge_expr.get("a") == TestParams(x=10,y=20) # TODO
     assert merge_expr.get("to_be_merged").x == 10
     assert merge_expr.get("to_be_merged").y == 20, 'default is not taken form base'
-    assert False
+
+def test_ast_merge_dataclass_merge():
+    a = ast.parse(r"from pyhparams.utils import UtilsTestParams; to_be_merged=UtilsTestParams(x=10)")
+    b = ast.parse(r"from pyhparams.utils import UtilsTestParams; to_be_merged=UtilsTestParams(x=10,y=20)")
+    merge_expr = ast_to_dict(merge(a, base=b))
+    # assert merge_expr.get("a") == TestParams(x=10,y=20) # TODO
+    assert merge_expr.get("to_be_merged").x == 10
+    assert merge_expr.get("to_be_merged").y == 20, 'default is not taken form base'
+
+def test_ast_merge_dataclass_merge_attribule_import_replace():
+    a = ast.parse(r"import pyhparams; to_be_merged=pyhparams.utils.UtilsTestParams(x=30)")
+    b = ast.parse(r"import pyhparams; to_be_merged=pyhparams.utils.UtilsTestParams(x=10)")
+    merge_expr = ast_to_dict(merge(a, base=b))
+    assert merge_expr.get("to_be_merged").x == 30
 
 
 # TODO: to not allow syy path valls for usr
+# TODO: merge empty dict
 
 # def test_ast_multi_assign_toplevel_yes():
 #     c = r'''
