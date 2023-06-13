@@ -7,7 +7,7 @@ from argparse import Action, ArgumentParser, Namespace
 from collections import abc
 from pathlib import Path
 from typing import Any, Optional, Sequence, Tuple, Union, Dict
-import ast
+from pyhparams import ast as ast_helper 
 
 # from addict import Dict
 # from yapf.yapflib.yapf_api import FormatCode
@@ -18,12 +18,11 @@ import ast
 # from .utils import (RemoveAssignFromAST, _get_external_cfg_base_path,
 #                     _get_external_cfg_path, _get_package_and_cfg_path)
 
-BASE_KEY = '_base_'
-DELETE_KEY = '_delete_'
-DEPRECATION_KEY = '_deprecation_'
-RESERVED_KEYS = ['filename', 'text', 'pretty_text', 'env_variables']
+BASE_KEY_ID = '_base_'
+# DELETE_KEY = '_delete_'
+# DEPRECATION_KEY = '_deprecation_'
+# RESERVED_KEYS = ['filename', 'text', 'pretty_text', 'env_variables']
 
-import re  # type: ignore
 
 
 def check_file_exist(filename, msg_tmpl='file "{}" does not exist'):
@@ -47,25 +46,20 @@ class _RemoveAssignFromAST(ast.NodeTransformer):
         else:
             return node
 
-def _dict_from_file(filename: str):
+def _dict_from_file(filename: str) -> dict:
+    # TODO str to pathlib
     base_cfg_dict = {}
-    if filename.endswith('.py'):
-        with open(filename, encoding='utf-8') as f:
-            codes = ast.parse(f.read())
-            print(f"DEBUG: _dict_from_file codes: {ast.dump(codes)}") # __AUTO_GENERATED_PRINT_VAR__
-            codes = _RemoveAssignFromAST(BASE_KEY).visit(codes)
-            print(f"DEBUG: _dict_from_file codes: {codes}") # __AUTO_GENERATED_PRINT_VAR__
-        codeobj = compile(codes, '', mode='exec')
+    if filename.endswith(('.py', '.pyhparams')):
+        expr_target = ast_helper.parse_file(filename)
+        # codes = _RemoveAssignFromAST(BASE_KEY).visit(expr_target)
+        base_files = ast_helper.extract_assign_base_files(expr_target, BASE_KEY_ID, imports= "from pathlib import Path") 
+        for base_file_name in base_files:
+            print(f"INFO: config mger {base_file_name}")
+            expr_base = ast_helper.parse_file(base_file_name)
+            expr_target = ast_helper.merge(expr_target, base=expr_base)
         # Support load global variable in nested function of the
-        # config.
-        global_locals_var = {'_base_': base_cfg_dict}
-        ori_keys = set(global_locals_var.keys())
-        eval(codeobj, global_locals_var, global_locals_var)
-        cfg_dict = {
-            key: value
-            for key, value in global_locals_var.items()
-            if (key not in ori_keys and not key.startswith('__'))
-        }
+        return ast_helper.ast_to_dict(expr_target)
+
     elif filename.endswith(('.yml', '.yaml', '.json')):
         raise NotImplementedError(f"file not supported: {filename}")
         # cfg_dict = load(temp_config_file.name)

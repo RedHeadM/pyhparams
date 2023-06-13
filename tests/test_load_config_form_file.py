@@ -50,3 +50,26 @@ added_by_target = 10
             assert conf.not_touched_by_target == 2
             assert conf.will_be_changed_by_target == "val2"
             assert conf.added_by_target == 10
+
+def test_tmp_conf_merge_with_multi_base():
+    conf_base1 = r'''
+will_be_changed_by_target = "bbase1"
+not_touched_by_target_or_base2 = 1
+    '''
+    conf_base2 = r'''
+will_be_changed_by_target = "bbase2"
+will_be_changed_by_base1 = "base2"
+not_touched_by_target_or_base1 = 2
+    '''
+    with config_file(conf_base1) as f_base1, config_file(conf_base2) as f_base2:
+        conf_target = f'''
+_base_ = ["{f_base1}","{f_base2}"]
+will_be_changed_by_target = "target1"
+added_by_target = "target2"
+    '''
+        with config_file(conf_target) as f_target:
+            conf = pyhparams.Config.create_from_file(str(f_target)) 
+            assert conf.will_be_changed_by_target == "target1"
+            assert conf.not_touched_by_target_or_base2 == 1
+            assert conf.not_touched_by_target_or_base1 == 2
+            assert conf.added_by_target == "target2"

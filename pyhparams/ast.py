@@ -5,6 +5,7 @@ from contextlib import redirect_stdout
 from sys import modules
 from types import ModuleType
 from typing import Any, Dict, List, Optional, Union
+from pathlib import Path
 
 def ast_to_dict(tree: ast.Module)-> Dict[str,Any]:
     ''' runs ast modules and exports local and global var at top level to dict '''
@@ -125,9 +126,7 @@ def _unpack_keywords(assign_value: ast.expr) -> Optional[List[ast.keyword]]:
     ''' extract kwargs for dict call'''
     # assert False, f"stm_merged :\n{ast.dump(assign_value)}"
     match assign_value:
-        case ast.Call(
-            # func=ast.Call(func=ast.Name(id='dict', ctx=ast.Load()),),
-        ):
+        case ast.Call():
             assert assign_value.args is None or len(assign_value.args) == 0
             return assign_value.keywords
         case ast.Dict():
@@ -194,6 +193,31 @@ def _body_idx_after_last_import(target: ast.Module) -> int:
 
     return 0
 
+def extract_assign_base_files(expr_target: ast.Module, assign_arget_name_id:str, imports:str) -> List[str]:
+    ast_m = ast.parse(imports)
+    for expr in expr_target.body:
+        match expr:
+            case ast.Assign(targets = [ast.Name(),],):
+                if len(expr.targets) and expr.targets[0].id == assign_arget_name_id:
+                    ast_m.body.append(expr)
+            case _:
+                continue
+
+    base_files = ast_to_dict(ast_m).get(assign_arget_name_id)
+    if base_files is None:
+        return []
+    elif isinstance(base_files, str):
+        return [base_files]
+    elif isinstance(base_files, list) and all((isinstance(v,str) for v in base_files)): 
+        return base_files
+    else:
+        raise ValueError(f"Config base file type not supported, must be str or List[str] got value={base_files} type={type(base_files)}")
+
+
+
+def parse_file(file_name: Union[Path, str]):
+    with open(file_name, encoding='utf-8') as f_target:
+        return ast.parse(f_target.read())
 
 def merge(target: ast.Module, base: ast.Module) -> ast.Module:
     # TODO merge imports
