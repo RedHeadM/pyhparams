@@ -17,13 +17,6 @@ def test_tmp_conf_one_line():
     with config_file(contet_in) as f:
         assert  contet_in == f.read_text()
 
-def test_tmp_conf_one_multi_line():
-    contetn_in = r'''
-    bar = klsjd
-    foo =2
-    '''
-    with config_file(contetn_in) as f:
-        assert  contetn_in == f.read_text()
 
 def test_create_from_file_single_var():
     contet_in = r"foo=0"
@@ -31,4 +24,29 @@ def test_create_from_file_single_var():
         conf = pyhparams.Config.create_from_file(str(f)) 
         assert conf.foo == 0
 
-# def test_load_int():
+def test_tmp_conf_one_multi_line():
+    contetn_in = r'''
+bar = "val1"
+foo = 2
+    '''
+    with config_file(contetn_in) as f:
+        conf = pyhparams.Config.create_from_file(str(f)) 
+        assert conf.foo == 2
+        assert conf.bar == "val1"
+
+def test_tmp_conf_merge_with_base():
+    conf_base = r'''
+will_be_changed_by_target = "val1"
+not_touched_by_target = 2
+    '''
+    with config_file(conf_base) as f_base:
+        conf_target = f'''
+_base_ = "{f_base}" 
+will_be_changed_by_target = "val2"
+added_by_target = 10
+    '''
+        with config_file(conf_target) as f_target:
+            conf = pyhparams.Config.create_from_file(str(f_target)) 
+            assert conf.not_touched_by_target == 2
+            assert conf.will_be_changed_by_target == "val2"
+            assert conf.added_by_target == 10
