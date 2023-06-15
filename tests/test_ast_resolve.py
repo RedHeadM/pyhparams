@@ -72,4 +72,15 @@ assigned = A(a=100, nesed_class = A.B(b=RESOLVE(A.a)) )
     resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
     assert resolved.get("assigned").nesed_class.b == 100
 
+def test_resolve_data_class_import():
+    a = ast.parse(r'''
+from pyhparams.utils import UtilsTestParams, UtilsTestParams2
+from pyhparams.ast_data_fields_resolve import RESOLVE
+a = UtilsTestParams(x=10,y=100)
+b = UtilsTestParams2(z= RESOLVE(UtilsTestParams.x))
+''')
+    resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+    assert resolved.get("b").z == 10
+
+
 #TODO: test dataclass default values is no assign
