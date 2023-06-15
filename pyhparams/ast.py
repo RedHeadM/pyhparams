@@ -61,7 +61,7 @@ def _merge_assign_dict(target: ast.Assign, base: ast.Assign) -> ast.Assign:
         assert len(s.targets) == 1
         assert isinstance(s.targets[0], ast.Name)
 
-    target.value = _merge_dict_call(target.value,base.value)
+    target.value = _merge_dict_call(target.value, base.value)
     return target
 
 def _merge_dict_call(target: ast.expr, base: ast.expr) -> ast.Call:
