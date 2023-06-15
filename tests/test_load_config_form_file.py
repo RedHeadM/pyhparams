@@ -73,3 +73,21 @@ added_by_target = "target2"
             assert conf.not_touched_by_target_or_base2 == 1
             assert conf.not_touched_by_target_or_base1 == 2
             assert conf.added_by_target == "target2"
+
+def test_tmp_conf_merge_with_resolve():
+    conf_base = r'''
+from pyhparams.utils import UtilsTestParams
+a = UtilsTestParams(x=10,y=100)
+    '''
+    with config_file(conf_base) as f_base:
+        conf_target = f'''
+_base_ = "{f_base}" 
+from pyhparams.utils import UtilsTestParams2
+from pyhparams import RESOLVE
+b = UtilsTestParams2(z= RESOLVE(UtilsTestParams.x))
+    '''
+        with config_file(conf_target) as f_target:
+            conf = pyhparams.Config.create_from_file(str(f_target)) 
+            assert conf.a.x == 10
+            assert conf.a.y == 100
+            assert conf.b.z == 10

@@ -194,7 +194,6 @@ def ast_resolve_dataclass_filed(node : ast.Module) -> ast.Module:
     func_call_name_id = RESOLVE.__name__
     assert isinstance(func_call_name_id, str)
     resolve_visit, node_to_dataclass_kw = CollectResolveCallsNodeVisitor(func_call_name_id).visit_collect_resolves(node)
-    assert len(resolve_visit)
     if len(resolve_visit):
         # TODO look up defaults
         resolved = ResolveDataClassCallsToValue(resolve_visit).visit_and_resolve(node)

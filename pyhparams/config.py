@@ -7,7 +7,9 @@ from argparse import Action, ArgumentParser, Namespace
 from collections import abc
 from pathlib import Path
 from typing import Any, Optional, Sequence, Tuple, Union, Dict
-from pyhparams import ast as ast_helper 
+from pyhparams import ast as ast_helper
+from pyhparams import ast_data_fields_resolve 
+from pyhparams.ast_data_fields_resolve import ast_resolve_dataclass_filed
 
 # from addict import Dict
 # from yapf.yapflib.yapf_api import FormatCode
@@ -77,7 +79,9 @@ def _dict_from_file(filename: str) -> dict:
             expr_base = ast_helper.parse_file(base_file_name)
             expr_target = ast_helper.merge(expr_target, base=expr_base)
         # Support load global variable in nested function of the
-        return ast_helper.ast_to_dict(expr_target)
+
+        resolved_epxpr_target = ast_resolve_dataclass_filed(expr_target)
+        return ast_helper.ast_to_dict(resolved_epxpr_target)
 
     elif filename.endswith(('.yml', '.yaml', '.json')):
         raise NotImplementedError(f"file not supported: {filename}")
@@ -109,7 +113,7 @@ class Config:
         if fileExtname not in ['.py', '.json', '.yaml', '.yml']:
             raise OSError('Only py/yml/yaml/json type are not supported')
 
+
         # read config and get base files list
         dict_f = _dict_from_file(filename)
         return dataclasses.make_dataclass('Config', dict_f)(**dict_f)
-        #     dict_f)

@@ -5,5 +5,6 @@ from .data_class import config_dataclass
 from .data_class import _PARAM_SUBSTITUTE as  PARAM_SUBSTITUTE
 from .config import Config
 from .utils import *
+from .ast_data_fields_resolve import RESOLVE
 
-__all__ =  ["config_dataclass", "Config","PARAM_SUBSTITUTE","utils"]
+__all__ =  ["RESOLVE", "Config","utils"]
