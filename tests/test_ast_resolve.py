@@ -32,6 +32,20 @@ resolved = RESOLVE(A.a) # resolve last assignment a=10 instead of default 0
     resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
     assert resolved.get("resolved") == 10
 
+def test_resolve_top_level_with_list():
+    a = ast.parse(r'''
+from dataclasses import dataclass
+from pyhparams.ast_data_fields_resolve import RESOLVE
+@dataclass
+class A:
+    a: int = 0
+    b: float = 0
+assigned = A(a=10, b= 1/139.)  
+resolved = [RESOLVE(A.a)] # resolve last assignment a=10 instead of default 0
+''')
+    resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+    assert resolved.get("resolved")[0] == 10
+
 
 def test_resolve_nested_data_class_defined_at_top_level():
     a = ast.parse(r'''
@@ -72,6 +86,47 @@ assigned = A(a=100, nesed_class = A.B(b=RESOLVE(A.a)) )
     resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
     assert resolved.get("assigned").nesed_class.b == 100
 
+def test_resolve_nested_data_class_defined_nested_with_List():
+    a = ast.parse(r'''
+from dataclasses import dataclass
+from pyhparams.ast_data_fields_resolve import RESOLVE
+from typing import List
+                   
+@dataclass
+class A:
+    a: int = 1
+    b: float = 2
+    to_resolve: float = 1 # in assigned updated vale is used
+    @dataclass
+    class B:
+        b: int = 3
+    nesed_class: List[B] = None
+assigned = A(a=100, nesed_class = [A.B(b=RESOLVE(A.a))] )  
+''')
+    resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+    assert resolved.get("assigned").nesed_class[0].b == 100
+
+# def test_resolve_nested_data_class_defined_nested_with_dict():
+#     a = ast.parse(r'''
+# from dataclasses import dataclass
+# from pyhparams.ast_data_fields_resolve import RESOLVE
+# from typing import Dict
+#                    
+# @dataclass
+# class A:
+#     a: int = 1
+#     b: float = 2
+#     to_resolve: float = 1 # in assigned updated vale is used
+#     @dataclass
+#     class B:
+#         b: int = 3
+#     nesed_class: Dict[B] = None
+# assigned = A(a=10, nesed_class = {"dict_key":A.B(b=RESOLVE(A.a))} )  
+# ''')
+#     resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+#     assert False
+#     assert resolved.get("assigned").nesed_class["dict_key"].b == 100
+
 def test_resolve_data_class_import():
     a = ast.parse(r'''
 from pyhparams.utils import UtilsTestParams, UtilsTestParams2
@@ -95,6 +150,26 @@ resolved = RESOLVE(A.a) # resolve default
 ''')
     conf = ast_to_dict(ast_resolve_dataclass_filed(a))
     assert conf.get("resolved") == 100
+
+def test_resolve_nested_default_nested():
+    a = ast.parse(r'''
+from dataclasses import dataclass
+from pyhparams.ast_data_fields_resolve import RESOLVE
+                   
+@dataclass
+class A:
+    a: int = 1
+    b: float = 2
+    to_resolve: float = 1 # in assigned updated vale is used
+    @dataclass
+    class B:
+        b: int = 3
+    nesed_class: B = None
+assigned = A(nesed_class = A.B(b=RESOLVE(A.a)) )  
+''')
+
+    resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+    assert resolved.get("assigned").nesed_class.b == 1
 
 #TODO: test with class call  
 #TODO: test multi resolve  

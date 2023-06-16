@@ -1,4 +1,3 @@
-# import ast
 from argparse import OPTIONAL
 import collections
 import dataclasses
@@ -58,7 +57,6 @@ class ResolveAttributeToDataClassCall(ast.NodeVisitor):
         assert self.data_class_name is not None, f"resolve look up failed {ast.dump(node)}"
         return self.data_class_name, self.keyword_field
 
-
 class CollectResolveCallsNodeVisitor(ast.NodeVisitor):
     ''' collect all recolve instances and extracts dataclas structure'''
     def __init__(self, func_call_name_id: str)  -> None:
@@ -69,29 +67,33 @@ class CollectResolveCallsNodeVisitor(ast.NodeVisitor):
         self.node_to_dataclass_kw: Dict[ast.Call, DataClassKw] = {}
 
     def visit_Call(self, node: ast.Call):
-        if  isinstance(node.func, ast.Name): 
-            print(f"\nDEBUG: CollectResolveCallsNodeVisitor#visit_Call node.func.id: {ast.dump(node)}\n") # __AUTO_GENERATED_PRINT_VAR__
-            if node.func.id == self.func_call_name_id:
-                assert len(node.args) == 1
-                data_class_instance_attr = node.args[0]
-                assert isinstance(data_class_instance_attr, ast.Attribute), f"type error for {ast.dump(data_class_instance_attr)}"
-                data_class_name, keyword_field = ResolveAttributeToDataClassCall().visit_and_resolves(node)
-                self.collected_resolve_calls[data_class_name].add(keyword_field)
-                assert not node in self.node_to_dataclass_kw
-                self.node_to_dataclass_kw[node] = DataClassKw(dataclass_name = data_class_name, 
-                                                             dataclass_field = keyword_field)
-            elif len(node.keywords):
-                # TODO: better way toget to call all ast.Call
-                for kw in node.keywords:
-                    if isinstance(kw.value,ast.Call):
-                        self.visit_Call(kw.value)
+        print(f"\n\nDEBUG: CollectResolveCallsNodeVisitor#visit_Call node.func.id: {ast.dump(node)}\n") # __AUTO_GENERATED_PRINT_VAR__
+        if  isinstance(node.func, ast.Name) and node.func.id == self.func_call_name_id: 
+            # print(f"\nDEBUG: CollectResolveCallsNodeVisitor#visit_Call node.func.id: {ast.dump(node)}\n") # __AUTO_GENERATED_PRINT_VAR__
+            assert len(node.args) == 1
+            data_class_instance_attr = node.args[0]
+            assert isinstance(data_class_instance_attr, ast.Attribute), f"type error for {ast.dump(data_class_instance_attr)}"
+            data_class_name, keyword_field = ResolveAttributeToDataClassCall().visit_and_resolves(node)
+            self.collected_resolve_calls[data_class_name].add(keyword_field)
+            print(f"DEBUG: resolve found: {data_class_name}.{keyword_field}") 
+            assert not node in self.node_to_dataclass_kw
+            self.node_to_dataclass_kw[node] = DataClassKw(dataclass_name = data_class_name, 
+                                                         dataclass_field = keyword_field)
 
-        elif isinstance(node.func, ast.Attribute): 
-            # TODO: better way toget to call all ast.Call
+        elif hasattr(node, "keywords"): 
             for kw in node.keywords:
-                if isinstance(kw.value,ast.Call):
-                    self.visit_Call(kw.value)
+                self.visit(kw)
+
         return node
+
+    def visit_List(self, node: ast.List):
+        for kw in node.elts:
+            self.visit(kw)
+            #
+    # visit_Dict
+    # visit_Set
+    # visit_Tuple
+    # visit_List
 
     def visit_collect_resolves(self, node: ast.Module) -> Tuple[DefaultDict[str, set], Dict[ast.Call, DataClassKw]]:
         self.visit(node)
@@ -100,7 +102,7 @@ class CollectResolveCallsNodeVisitor(ast.NodeVisitor):
 
 
 class ResolveDataClassCallsKeywordCalls(ast.NodeVisitor):
-    ''' collect all recolve instances and extracts dataclas structure'''
+    ''' collect all recolve instances and extracts dataclass structure'''
     def __init__(self, resolve_calls: DefaultDict[str, set])  -> None:
         super().__init__()
         self.resolve_calls = resolve_calls
@@ -120,7 +122,7 @@ class ResolveDataClassCallsKeywordCalls(ast.NodeVisitor):
                     assert kw.arg is not None, f"kw arg is None: {ast.dump(node)}"
                     dataclass_field_name = kw.arg
                     if dataclass_field_name in keys_to_resolve:
-                        print(f"INFO: Resolve dataclass: {dataclass_name}.{dataclass_field_name}={ast.dump(kw.value)}") 
+                        print(f"INFO: Resolve dataclass from assigment: {dataclass_name}.{dataclass_field_name}={ast.dump(kw.value)}") 
                         self.data_class_kw_value[dataclass_name][dataclass_field_name] = kw.value
 
         return node
@@ -169,51 +171,36 @@ class TransformResolves(ast.NodeTransformer):
             id_dataclass_field =f'{data_class_kw.dataclass_name}.{data_class_kw.dataclass_field}'
             if  value_call is not None:
                 # assert value_call is not None, f" dataclass field cound not be resolved: {id_dataclass_field}" 
-                print(f"INFO resolve transform: {id_dataclass_field}={ast.dump(value_call)}")
+                print(f"DEBUG resolve transform: {id_dataclass_field}={ast.dump(value_call)}")
                 self.transform_cnt+=1
                 self.resolved_dataclass_field.append(id_dataclass_field)
                 ret_transform = value_call
-        elif len(node.keywords):
-            # TODO: better way toget to call all ast.Call
+        elif hasattr(node, "keywords"): 
             for kw in node.keywords:
-                if isinstance(kw.value,ast.Call):
-                    kw.value = self.visit_Call(kw.value)
-        elif isinstance(node.func, ast.Attribute): 
-            # TODO: better way toget to call all ast.Call
-            for kw in node.keywords:
-                if isinstance(kw.value,ast.Call):
-                    self.visit_Call(kw.value)
-                # check for kw calls
+                self.visit(kw)
+
         return ret_transform
+
+    def visit_List(self, node: ast.List):
+        # visit and update Calls
+        elts = []
+        for kw in node.elts:
+            elts.append(self.visit(kw))
+        node.elts = elts
+        return node
 
     def visit_and_check(self, node: ast.Module) -> List[str]: 
         self.visit(node)
-        assert self.visit_cnt, "check requestet but nothing was visited"
-        assert self.transform_cnt, "expected transform but none happend"
+        assert self.visit_cnt >0, "expected at least one resolve transform"
         return self.resolved_dataclass_field
 
-def get_dataclass_default_value(data_class: str, field_name:str):
-    from dataclasses import is_dataclass, fields, is_dataclass
-    found=False
-    default_value = None
-    is_dataclass_val = is_dataclass(data_class)
-    if is_dataclass_val:
-        field_name_to_field = {f.name:f for f in fields(data_class)}
-        if (f:= field_name_to_field.get(field_name)) is not None:
-            found=True
-            default_value = (
-                f.default_factory()
-                if callable(f.default_factory)
-                else f.default
-            )
-    return {"field_found":found,"is_dataclass":is_dataclass_val,"default_value":default_value}
 
 def _look_up_dataclass_default(dataclass_name: str, dataclass_field: str, imports, class_defs) -> ast.expr:
     ast_m = ast.parse('')
     ast_m.body.extend(imports)
     ast_m.body.extend(class_defs)
     # TODO maybe with meta lib or parse once
-    get_dataclass_default_value(DataClassKw, dataclass_name)
+    # define function get default values when evaluated
     ast_func = ast.parse(r'''
 def get_default(data_class, field_name):
     from dataclasses import is_dataclass, fields, is_dataclass
@@ -286,20 +273,27 @@ def ast_resolve_dataclass_filed(node : ast.Module) -> ast.Module:
     func_call_name_id = RESOLVE.__name__
     assert isinstance(func_call_name_id, str)
     collected_resolve_calls, node_to_dataclass_kw = CollectResolveCallsNodeVisitor(func_call_name_id).visit_collect_resolves(node)
+
+    for b in node.body:
+        print(f"DEBUG only {ast.dump(b)}")
     if len(collected_resolve_calls):
-        # TODO look up defaults
         # TODO check dataclasses
         resolved = ResolveDataClassCallsKeywordCalls(collected_resolve_calls).visit_and_resolve(node)
         if sum((len(r) for r in collected_resolve_calls)) !=  sum((len(r) for r in resolved)):
             resolved = _update_unresolved_with_dataclass_defaults(collected_resolve_calls, resolved, get_imports(node), get_dataclass_def(node))
+        assert sum((len(r) for r in collected_resolve_calls)) ==  sum((len(r) for r in resolved)), "not all could be resolved"
 
         resolved_ids = TransformResolves(node_to_dataclass_kw, resolved).visit_and_check(node)
-        # loop to resovle nested
 
-        print(f"DEUBG: Start resolve nested level {ast.dump(node).split(',')}")
-        while(HasOpenResolveCalls(func_call_name_id).visit_and_check_open_resolves(node)):
-            print("INFO: Start resolve nested level")
+        # loop to resovle nested
+        max_leved = 5
+        for current_nested_resolve_level in  range(max_leved):
+            if not HasOpenResolveCalls(func_call_name_id).visit_and_check_open_resolves(node):
+                break
+            print(f"DEBUG: Start resolve nested level={current_nested_resolve_level}/{max_leved}")
             resolved_ids.extend(TransformResolves(node_to_dataclass_kw, resolved).visit_and_check(node))
+        else: # no break
+            assert not HasOpenResolveCalls(func_call_name_id).visit_and_check_open_resolves(node), f'failed to resolve all'
         # check no resolve
         for dataclass_name, dataclass_fields in resolved.items():
             for dataclass_field_name in dataclass_fields.keys():
