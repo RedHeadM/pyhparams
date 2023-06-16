@@ -1,7 +1,7 @@
 import ast 
 
 from pathlib import Path
-from pyhparams.ast import ast_to_dict, AstLoadClassCallArgsExtrator, merge,compare, get_imports, _is_dataclass_assign, _unpack_keywords
+from pyhparams.ast import ast_to_dict, AstLoadClassCallArgsExtrator, merge,compare, get_imports, is_dataclass_assign, _unpack_keywords
 from .helper import TestParams
 
 def test_ast_to_dict_str():
@@ -182,7 +182,7 @@ def test_ast_is_data_class_assing():
     a = ast.parse(f"{sys_path};import helper; to_be_merged=helper.TestParams(x=10,y=20)")
 
     # pass body to have imports with sys call correct
-    assert _is_dataclass_assign(a.body[-1], imports=a.body[:-1])
+    assert is_dataclass_assign(a.body[-1], imports=a.body[:-1])
 
 def test_ast_is_data_class_assing_from_import():
     local_import_path = Path(__file__).parent.resolve()
@@ -191,14 +191,14 @@ def test_ast_is_data_class_assing_from_import():
     a = ast.parse(f"{sys_path};from helper import TestParams; to_be_merged=TestParams(x=10,y=20)")
 
     # pass body to have imports with sys call correct
-    assert _is_dataclass_assign(a.body[-1], imports=a.body[:-1])
+    assert is_dataclass_assign(a.body[-1], imports=a.body[:-1])
 
 def test_ast_is_data_class_assing_none():
 
     a = ast.parse(r"import pathlib; foo=pathlib.Path('a'); bar =2")
 
-    assert not _is_dataclass_assign(a.body[-2], imports=[a.body[0]])
-    assert not _is_dataclass_assign(a.body[-1], imports=[a.body[0]])
+    assert not is_dataclass_assign(a.body[-2], imports=[a.body[0]])
+    assert not is_dataclass_assign(a.body[-1], imports=[a.body[0]])
 
 def test_unpack_dict_keywords():
     expr = ast.Dict(keys=[ast.Constant(value='a'), ast.Constant(value='b')], 
