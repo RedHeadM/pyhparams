@@ -183,8 +183,6 @@ def is_dataclass_assign(assign: Union[ast.Assign, str], imports: List[Union[ast.
     ast_m.body.append(is_dataclass_result_assign)
 
     ast.fix_missing_locations(ast_m)
-    # for i, c in enumerate(ast_m.body):
-    #     print(f"{i}:\n{ast.dump(c)}")
 
     return ast_to_dict(ast_m)[is_dataclass_result_assign_var_name]
 
@@ -367,6 +365,14 @@ def get_imports(codes: ast.Module) -> List[Union[ast.Import, ast.ImportFrom]]:
     stm_imports = []
     for i, stm in enumerate(codes.body):
         if _is_import(stm):
+            stm_imports.append(stm)
+    return stm_imports
+
+def get_dataclass_def(codes: ast.Module) -> List[ast.ClassDef]:
+    stm_imports = []
+    for stm in codes.body:
+        # TODO check for decorator_list better
+        if isinstance(stm, ast.ClassDef) and len(stm.decorator_list):
             stm_imports.append(stm)
     return stm_imports
 

@@ -2,14 +2,14 @@
 from argparse import OPTIONAL
 import collections
 import dataclasses
-from dataclasses import dataclass, field
-from typing import Tuple, TypeVar, List, overload, Optional, Dict, DefaultDict
+from dataclasses import dataclass, fields
+from pathlib import Path
+from typing import Tuple, TypeVar, List, Union, Optional, Dict, DefaultDict
 import ast
 import typing
 from collections import defaultdict
 
-from pyhparams import data_class
-
+from pyhparams.ast import get_imports, get_dataclass_def, ast_to_dict, unparse
 T = TypeVar("T")
 # F = TypeVar("F")
 
@@ -95,10 +95,11 @@ class CollectResolveCallsNodeVisitor(ast.NodeVisitor):
 
     def visit_collect_resolves(self, node: ast.Module) -> Tuple[DefaultDict[str, set], Dict[ast.Call, DataClassKw]]:
         self.visit(node)
+        assert len(self.collected_resolve_calls) == len(self.node_to_dataclass_kw)
         return self.collected_resolve_calls, self.node_to_dataclass_kw
 
 
-class ResolveDataClassCallsToValue(ast.NodeVisitor):
+class ResolveDataClassCallsKeywordCalls(ast.NodeVisitor):
     ''' collect all recolve instances and extracts dataclas structure'''
     def __init__(self, resolve_calls: DefaultDict[str, set])  -> None:
         super().__init__()
@@ -147,9 +148,8 @@ class HasOpenResolveCalls(ast.NodeVisitor):
 
     def visit_and_check_open_resolves(self, node: ast.Module) -> bool: 
         self.visit(node)
-        assert self.visit_cnt, "check requestet but nothing was visited"
+        # assert self.visit_cnt, "check requestet but nothing was visited" # no assert since all calls can be mapped to ast.const
         return self._open_resolve_found 
-
 
 class TransformResolves(ast.NodeTransformer):
     ''' collect all recolve instances and extracts dataclas structure'''
@@ -163,14 +163,16 @@ class TransformResolves(ast.NodeTransformer):
 
     def visit_Call(self, node: ast.Call):
         self.visit_cnt+=1
+        ret_transform = node
         if (data_class_kw := self.node_to_dataclass_kw.get(node)) is not None: 
             value_call = self.resolved_dataclass_kw[data_class_kw.dataclass_name].get(data_class_kw.dataclass_field)
             id_dataclass_field =f'{data_class_kw.dataclass_name}.{data_class_kw.dataclass_field}'
-            assert value_call is not None, f" dataclass field cound not be resolved: {id_dataclass_field}" 
-            print(f"INFO resolve transform: {id_dataclass_field}={ast.dump(value_call)}")
-            self.transform_cnt+=1
-            self.resolved_dataclass_field.append(id_dataclass_field)
-            return value_call
+            if  value_call is not None:
+                # assert value_call is not None, f" dataclass field cound not be resolved: {id_dataclass_field}" 
+                print(f"INFO resolve transform: {id_dataclass_field}={ast.dump(value_call)}")
+                self.transform_cnt+=1
+                self.resolved_dataclass_field.append(id_dataclass_field)
+                ret_transform = value_call
         elif len(node.keywords):
             # TODO: better way toget to call all ast.Call
             for kw in node.keywords:
@@ -182,7 +184,7 @@ class TransformResolves(ast.NodeTransformer):
                 if isinstance(kw.value,ast.Call):
                     self.visit_Call(kw.value)
                 # check for kw calls
-        return node
+        return ret_transform
 
     def visit_and_check(self, node: ast.Module) -> List[str]: 
         self.visit(node)
@@ -190,23 +192,120 @@ class TransformResolves(ast.NodeTransformer):
         assert self.transform_cnt, "expected transform but none happend"
         return self.resolved_dataclass_field
 
+def get_dataclass_default_value(data_class: str, field_name:str):
+    from dataclasses import is_dataclass, fields, is_dataclass
+    found=False
+    default_value = None
+    is_dataclass_val = is_dataclass(data_class)
+    if is_dataclass_val:
+        field_name_to_field = {f.name:f for f in fields(data_class)}
+        if (f:= field_name_to_field.get(field_name)) is not None:
+            found=True
+            default_value = (
+                f.default_factory()
+                if callable(f.default_factory)
+                else f.default
+            )
+    return {"field_found":found,"is_dataclass":is_dataclass_val,"default_value":default_value}
+
+def _look_up_dataclass_default(dataclass_name: str, dataclass_field: str, imports, class_defs) -> ast.expr:
+    ast_m = ast.parse('')
+    ast_m.body.extend(imports)
+    ast_m.body.extend(class_defs)
+    # TODO maybe with meta lib or parse once
+    get_dataclass_default_value(DataClassKw, dataclass_name)
+    ast_func = ast.parse(r'''
+def get_default(data_class, field_name):
+    from dataclasses import is_dataclass, fields, is_dataclass
+    found=False
+    default_value = None
+    default_souce = "const_value"
+    is_dataclass_val = is_dataclass(data_class)
+    if is_dataclass_val:
+        field_name_to_field = {f.name:f for f in fields(data_class)}
+        if (f:= field_name_to_field.get(field_name)) is not None:
+            found=True
+            if callable(f.default_factory):
+                default_value = f.default_factory()
+                default_souce = "factory"
+            else:
+                default_value = f.default
+    return {"field_found" : found, "is_dataclass" : is_dataclass_val, 
+            "default_value": default_value, 
+            "default_from_factory" : default_souce}
+''')
+    ast_m.body.extend(ast_func.body)
+    # ast prase evaluation of function to get default values
+    # and add an assing value to extract ast.expr to return
+    result_name = "get_default_return_val"
+    ast_func = ast.parse(f"{result_name} = get_default({dataclass_name},'{dataclass_field}')")
+    ast_m.body.extend(ast_func.body)
+    ast.fix_missing_locations(ast_m)
+
+    print(f"DEBUG: _look_up_dataclass_default ast_m: {unparse(ast_m)}") # __AUTO_GENERATED_PRINT_VAR__
+    default_return_val = ast_to_dict(ast_m)[result_name]
+    assert default_return_val["is_dataclass"], f"Resolve for default value {dataclass_name}.{dataclass_field} is not a dataclass"
+    assert default_return_val["field_found"], f"Resolve for default value {dataclass_name}.{dataclass_field} field does not exits"
+
+    default_value = default_return_val["default_value"]
+    default_source = default_return_val["default_from_factory"]
+    ast_expr_default_value = None
+    print(f"INFO: resolved default value for {dataclass_name}.{dataclass_field}={default_value} source={default_source}")
+    if isinstance(default_value, (str,int, float, Path)) or default_value is None:
+        ast_value_expr = ast.parse(f"default_val = {default_value}").body[0]
+        assert isinstance(ast_value_expr,ast.Assign)
+        ast_expr_default_value =  ast_value_expr.value
+        print(f"DEBUG: resolved default value for ast value{dataclass_name}.{dataclass_field}={ast.dump(ast_value_expr.value)}")
+    else:
+        # also dataclasses.MISSING here
+        # TODO: add import and func call to get value 
+        # eg. a= RESOLVE(A.a) to from pyharams import get_dataclass_default_value; a= get_dataclass_default_value(A, a)
+        raise NotImplementedError(f"complex type not supportd for dataclass default resovle {dataclass_name}.{dataclass_field} type={type(default_value)}")
+
+    return ast_expr_default_value
+
+
+def _update_unresolved_with_dataclass_defaults(collected_resolve_calls : DefaultDict[str, set], 
+                                               data_class_kw_value : DefaultDict[str, Dict[str, ast.expr]],
+                                               imports: List[Union[ast.Import, ast.ImportFrom]],
+                                               class_def : List[ast.ClassDef]
+                                               ) -> DefaultDict[str, Dict[str, ast.expr]]:
+    ''' for dataclass field pairs with no resovle look up defaults '''
+
+    for dataclass_name, dataclass_fields in collected_resolve_calls.items():
+        for dataclass_field_name in dataclass_fields:
+            if dataclass_name not in data_class_kw_value or \
+                dataclass_field_name not in data_class_kw_value[dataclass_name]:
+                # id_dataclass_field = f"{dataclass_name}.{dataclass_field_name}"
+                # assert False, f'failed to resolve {id_dataclass_field}'
+                expr = _look_up_dataclass_default(dataclass_name,dataclass_field_name,imports, class_def)
+                data_class_kw_value[dataclass_name][dataclass_field_name] = expr
+    return data_class_kw_value
+
 def ast_resolve_dataclass_filed(node : ast.Module) -> ast.Module:
     func_call_name_id = RESOLVE.__name__
     assert isinstance(func_call_name_id, str)
-    resolve_visit, node_to_dataclass_kw = CollectResolveCallsNodeVisitor(func_call_name_id).visit_collect_resolves(node)
-    if len(resolve_visit):
+    collected_resolve_calls, node_to_dataclass_kw = CollectResolveCallsNodeVisitor(func_call_name_id).visit_collect_resolves(node)
+    if len(collected_resolve_calls):
         # TODO look up defaults
-        resolved = ResolveDataClassCallsToValue(resolve_visit).visit_and_resolve(node)
+        # TODO check dataclasses
+        resolved = ResolveDataClassCallsKeywordCalls(collected_resolve_calls).visit_and_resolve(node)
+        if sum((len(r) for r in collected_resolve_calls)) !=  sum((len(r) for r in resolved)):
+            resolved = _update_unresolved_with_dataclass_defaults(collected_resolve_calls, resolved, get_imports(node), get_dataclass_def(node))
+
         resolved_ids = TransformResolves(node_to_dataclass_kw, resolved).visit_and_check(node)
+        # loop to resovle nested
+
+        print(f"DEUBG: Start resolve nested level {ast.dump(node).split(',')}")
         while(HasOpenResolveCalls(func_call_name_id).visit_and_check_open_resolves(node)):
             print("INFO: Start resolve nested level")
             resolved_ids.extend(TransformResolves(node_to_dataclass_kw, resolved).visit_and_check(node))
+        # check no resolve
         for dataclass_name, dataclass_fields in resolved.items():
             for dataclass_field_name in dataclass_fields.keys():
                 id_dataclass_field = f"{dataclass_name}.{dataclass_field_name}"
                 assert id_dataclass_field in resolved_ids, f'failed to resolve {id_dataclass_field}'
 
-        # check no resol
     return node
 
     # print(resole_visit.collected_resolve_calls)

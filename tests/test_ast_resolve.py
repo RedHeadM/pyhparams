@@ -83,4 +83,35 @@ b = UtilsTestParams2(z= RESOLVE(UtilsTestParams.x))
     assert resolved.get("b").z == 10
 
 
-#TODO: test dataclass default values is no assign
+def test_resolve_default():
+    a = ast.parse(r'''
+from dataclasses import dataclass
+from pyhparams.ast_data_fields_resolve import RESOLVE
+@dataclass
+class A:
+    a: int = 100
+    b: float = 1/137.
+resolved = RESOLVE(A.a) # resolve default
+''')
+    conf = ast_to_dict(ast_resolve_dataclass_filed(a))
+    assert conf.get("resolved") == 100
+
+#TODO: test with class call  
+#TODO: test multi resolve  
+# a = RESOLVE(A.a)
+# a = ast.parse(r'''
+# from dataclasses import dataclass
+# from pyhparams.ast_data_fields_resolve import RESOLVE
+# @dataclass
+# class A:
+#     a: int = 1
+# @dataclass
+# class B:
+#     b: int = 2
+# @dataclass
+# class C:
+#     c: int = 3
+# a = A(a=4) 
+# b = B(b=RESOLVE(A.a) 
+# c = B(b=RESOLVE(B.b) # resolve of b only can happen if resolved before
+# '''
