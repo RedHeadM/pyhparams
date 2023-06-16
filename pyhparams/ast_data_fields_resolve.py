@@ -1,19 +1,12 @@
-from argparse import OPTIONAL
-import collections
-import dataclasses
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Tuple, TypeVar, List, Union, Optional, Dict, DefaultDict
 import ast
-import typing
 from collections import defaultdict
 
 from pyhparams.ast import get_imports, get_dataclass_def, ast_to_dict, unparse
-T = TypeVar("T")
-# F = TypeVar("F")
 
-# PARAM_MISSING = dataclasses.MISSING
-# PARAM_MISSING = Optional[F, dataclasses.MISSING]
+T = TypeVar("T")
 
 def RESOLVE(val: T) -> T:
     ''' function to indicate which dataclass fileds will should be resolved in final config'''
