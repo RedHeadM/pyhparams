@@ -277,7 +277,6 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
             elif is_dataclass_assign(stm, imports_target) and is_dataclass_assign(same_base_assign,imports_base):
                 stm_merged = _merge_assign_data_class(stm, same_base_assign)
                 # TODO: check im manipulation while iter is ok
-                print(f"stm_merged {i}:\n{ast.dump(stm_merged)}")
                 ast_trans = AstAssinTransform(stm_merged)
                 ast_trans.visit(target)
                 assert  ast_trans.num_replacement == 1
