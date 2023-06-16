@@ -300,8 +300,8 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
     if fix_missing_locations_needed:
         ast.fix_missing_locations(target)
 
-    for i, c in enumerate(target.body):
-        print(f"{i}:\n{ast.dump(c)}")
+    # for i, c in enumerate(target.body):
+    #     print(f"{i}:\n{ast.dump(c)}")
     #
     # for i, c in enumerate(base.body):
     #     print(f"BASE {i}:\n{ast.dump(c)}")

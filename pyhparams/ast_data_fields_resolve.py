@@ -34,7 +34,6 @@ class ResolveAttributeToDataClassCall(ast.NodeVisitor):
 
     def visit_Attribute(self, att: ast.Attribute):
 
-        print(f"DEBUG: ResolveAttributeToDataClassCall#visit_and_resolves node: {ast.dump(att)}") # __AUTO_GENERATED_PRINT_VAR__
         self.visit_cnt += 1
         # assign filed to first visit
         if self.keyword_field is None:
@@ -67,9 +66,8 @@ class CollectResolveCallsNodeVisitor(ast.NodeVisitor):
         self.node_to_dataclass_kw: Dict[ast.Call, DataClassKw] = {}
 
     def visit_Call(self, node: ast.Call):
-        print(f"\n\nDEBUG: CollectResolveCallsNodeVisitor#visit_Call node.func.id: {ast.dump(node)}\n") # __AUTO_GENERATED_PRINT_VAR__
+        # print(f"\n\nDEBUG: CollectResolveCallsNodeVisitor#visit_Call node.func.id: {ast.dump(node)}\n") # __AUTO_GENERATED_PRINT_VAR__
         if  isinstance(node.func, ast.Name) and node.func.id == self.func_call_name_id: 
-            # print(f"\nDEBUG: CollectResolveCallsNodeVisitor#visit_Call node.func.id: {ast.dump(node)}\n") # __AUTO_GENERATED_PRINT_VAR__
             assert len(node.args) == 1
             data_class_instance_attr = node.args[0]
             assert isinstance(data_class_instance_attr, ast.Attribute), f"type error for {ast.dump(data_class_instance_attr)}"
@@ -228,7 +226,7 @@ def get_default(data_class, field_name):
     ast_m.body.extend(ast_func.body)
     ast.fix_missing_locations(ast_m)
 
-    print(f"DEBUG: _look_up_dataclass_default ast_m: {unparse(ast_m)}") # __AUTO_GENERATED_PRINT_VAR__
+    # print(f"DEBUG: _look_up_dataclass_default ast_m: {unparse(ast_m)}") # __AUTO_GENERATED_PRINT_VAR__
     default_return_val = ast_to_dict(ast_m)[result_name]
     assert default_return_val["is_dataclass"], f"Resolve for default value {dataclass_name}.{dataclass_field} is not a dataclass"
     assert default_return_val["field_found"], f"Resolve for default value {dataclass_name}.{dataclass_field} field does not exits"
@@ -273,8 +271,6 @@ def ast_resolve_dataclass_filed(node : ast.Module) -> ast.Module:
     assert isinstance(func_call_name_id, str)
     collected_resolve_calls, node_to_dataclass_kw = CollectResolveCallsNodeVisitor(func_call_name_id).visit_collect_resolves(node)
 
-    for b in node.body:
-        print(f"DEBUG only {ast.dump(b)}")
     if len(collected_resolve_calls):
         # TODO check dataclasses
         resolved = ResolveDataClassCallsKeywordCalls(collected_resolve_calls).visit_and_resolve(node)
