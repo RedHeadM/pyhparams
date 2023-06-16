@@ -32,6 +32,22 @@ resolved = RESOLVE(A.a) # resolve last assignment a=10 instead of default 0
     resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
     assert resolved.get("resolved") == 10
 
+def test_resolve_top_level_same_multiple_times():
+    a = ast.parse(r'''
+from dataclasses import dataclass
+from pyhparams.ast_data_fields_resolve import RESOLVE
+@dataclass
+class A:
+    a: int = 0
+    b: float = 1
+assigned = A(a=10, b= 1/139.)  
+resolved = RESOLVE(A.a) 
+resolved2 = RESOLVE(A.a) 
+''')
+    resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+    assert resolved.get("resolved") == 10
+    assert resolved.get("resolved2") == 10
+
 def test_resolve_top_level_with_list():
     a = ast.parse(r'''
 from dataclasses import dataclass
@@ -46,6 +62,39 @@ resolved = [RESOLVE(A.a)] # resolve last assignment a=10 instead of default 0
     resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
     assert resolved.get("resolved")[0] == 10
 
+def test_resolve_top_level_with_dict():
+    a = ast.parse(r'''
+from dataclasses import dataclass
+from pyhparams.ast_data_fields_resolve import RESOLVE
+@dataclass
+class A:
+    a: int = 0
+    b: float = 0
+assigned = A(a=10, b= 1/139.)  
+resolved = dict(value=RESOLVE(A.a)) 
+resolved2 = {"value":RESOLVE(A.a)} 
+''')
+    resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+    assert resolved.get("resolved").get("value") == 10
+    assert resolved.get("resolved2").get("value") == 10
+
+def test_resolve_top_level_with_tuple():
+    a = ast.parse(r'''
+from dataclasses import dataclass
+from pyhparams.ast_data_fields_resolve import RESOLVE
+@dataclass
+class A:
+    a: int = 0
+    b: float = 0
+assigned = A(a=10, b= 1/139.)  
+# resolved = tuple(RESOLVE(A.a),) 
+resolved2 = (RESOLVE(A.a),)
+''')
+    resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+    # assert resolved.get("resolved")[0] == 10
+    assert resolved.get("resolved2")[0] == 10
+
+# TODO set
 
 def test_resolve_nested_data_class_defined_at_top_level():
     a = ast.parse(r'''
@@ -105,6 +154,47 @@ assigned = A(a=100, nesed_class = [A.B(b=RESOLVE(A.a))] )
 ''')
     resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
     assert resolved.get("assigned").nesed_class[0].b == 100
+
+
+def test_resolve_nested_data_class_defined_nested_with_Dict():
+    a = ast.parse(r'''
+from dataclasses import dataclass
+from pyhparams.ast_data_fields_resolve import RESOLVE
+from typing import Dict
+                   
+@dataclass
+class A:
+    a: int = 1
+    b: float = 2
+    to_resolve: float = 1 # in assigned updated vale is used
+    @dataclass
+    class B:
+        b: int = 3
+    nesed_class: Dict[str,B] = None
+assigned = A(a=100, nesed_class = {"val":A.B(b=RESOLVE(A.a))} )  
+''')
+    resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+    assert resolved.get("assigned").nesed_class.get("val").b == 100
+
+def test_resolve_nested_data_class_defined_nested_with_Tuple():
+    a = ast.parse(r'''
+from dataclasses import dataclass
+from pyhparams.ast_data_fields_resolve import RESOLVE
+from typing import Tuple
+                   
+@dataclass
+class A:
+    a: int = 1
+    b: float = 2
+    to_resolve: float = 1 # in assigned updated vale is used
+    @dataclass
+    class B:
+        b: int = 3
+    nesed_class: Tuple[str,B] = None
+assigned = A(a=100, nesed_class = ("val", A.B(b=RESOLVE(A.a))) )  
+''')
+    resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+    assert resolved.get("assigned").nesed_class[1].b == 100
 
 # def test_resolve_nested_data_class_defined_nested_with_dict():
 #     a = ast.parse(r'''
@@ -173,8 +263,7 @@ assigned = A(nesed_class = A.B(b=RESOLVE(A.a)) )
 
 #TODO: test with class call  
 #TODO: test multi resolve  
-# a = RESOLVE(A.a)
-# a = ast.parse(r'''
+
 # from dataclasses import dataclass
 # from pyhparams.ast_data_fields_resolve import RESOLVE
 # @dataclass
@@ -187,6 +276,25 @@ assigned = A(nesed_class = A.B(b=RESOLVE(A.a)) )
 # class C:
 #     c: int = 3
 # a = A(a=4) 
-# b = B(b=RESOLVE(A.a) 
-# c = B(b=RESOLVE(B.b) # resolve of b only can happen if resolved before
-# '''
+# b = B(b=RESOLVE(A.a)) 
+# c = C(c=RESOLVE(B.b)) # resolve of b only can happen if resolved before
+
+def test_resolve_multi_depended():
+    a = ast.parse(r'''
+from dataclasses import dataclass
+from pyhparams.ast_data_fields_resolve import RESOLVE
+@dataclass
+class A:
+    a: int = 100
+@dataclass
+class B:
+    b: int = 2
+@dataclass
+class C:
+    c: int = 3
+a = A(a=4) 
+b = B(b=RESOLVE(A.a)) 
+c = C(c=RESOLVE(B.b)) # resolve of b only can happen if resolved before
+''')
+    resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+    assert resolved.get("c").c ==4
