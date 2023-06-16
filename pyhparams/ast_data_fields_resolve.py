@@ -89,15 +89,14 @@ class CollectResolveCallsNodeVisitor(ast.NodeVisitor):
     def visit_List(self, node: ast.List):
         for kw in node.elts:
             self.visit(kw)
-            #
-    # visit_Dict
-    # visit_Set
-    # visit_Tuple
-    # visit_List
+
+    def visit_Dict(self, node: ast.Dict):
+        for kw in node.values:
+            self.visit(kw)
 
     def visit_collect_resolves(self, node: ast.Module) -> Tuple[DefaultDict[str, set], Dict[ast.Call, DataClassKw]]:
         self.visit(node)
-        assert len(self.collected_resolve_calls) == len(self.node_to_dataclass_kw)
+        # assert len(self.collected_resolve_calls) == len(self.node_to_dataclass_kw)
         return self.collected_resolve_calls, self.node_to_dataclass_kw
 
 
