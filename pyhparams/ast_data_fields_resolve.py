@@ -15,14 +15,16 @@ def RESOLVE(val: T) -> T:
 
 @dataclass #(solts= True,kw_only=False,frozen=True)
 class DataClassKw:
-    dataclass_name: str
-    dataclass_field: str
+    class_name: str
+    field_name: str
+    class_name_with_nested_class_define: str
 
 
 class ResolveAttributeToDataClassCall(ast.NodeVisitor):
     def __init__(self)  -> None:
         self.keyword_field : Optional[str] = None
         self.data_class_name : Optional[str] = None
+        self.dataclass_name_with_nested_class_define : Optional[str] = None
         self.visit_cnt = 0
 
     def visit_Attribute(self, att: ast.Attribute):
@@ -35,19 +37,24 @@ class ResolveAttributeToDataClassCall(ast.NodeVisitor):
         if isinstance(att.value, ast.Name):
             # no nested case
             self.data_class_name = att.value.id
+            self.dataclass_name_with_nested_class_define = f'{self.dataclass_name_with_nested_class_define}.{att.value.id}'
         elif isinstance(att.value, ast.Attribute):
             # nested case: get last attr
             self.data_class_name = att.value.attr
+            self.dataclass_name_with_nested_class_define = f'{self.dataclass_name_with_nested_class_define}.{att.value.attr}'
         else:
             raise RuntimeError(f"not supported resolve for: {ast.dump(att)}")
 
-    def visit_and_resolves(self, node: ast.Module) -> Tuple[str, str]:
+    def visit_and_resolves(self, node: ast.expr) -> DataClassKw:
         self.visit(node)
         assert self.visit_cnt, "attr resolve requestet but nothing was visited"
 
         assert self.keyword_field is not None, f"resolve look up failed {ast.dump(node)}"
         assert self.data_class_name is not None, f"resolve look up failed {ast.dump(node)}"
-        return self.data_class_name, self.keyword_field
+        assert self.dataclass_name_with_nested_class_define is not None, f"resolve look up failed {ast.dump(node)}"
+        return DataClassKw(class_name= self.data_class_name, 
+                           field_name = self.keyword_field,
+                           class_name_with_nested_class_define =  self.dataclass_name_with_nested_class_define)
 
 class CollectResolveCallsNodeVisitor(ast.NodeVisitor):
     ''' collect all recolve instances and extracts dataclas structure'''
@@ -64,12 +71,11 @@ class CollectResolveCallsNodeVisitor(ast.NodeVisitor):
             assert len(node.args) == 1
             data_class_instance_attr = node.args[0]
             assert isinstance(data_class_instance_attr, ast.Attribute), f"type error for {ast.dump(data_class_instance_attr)}"
-            data_class_name, keyword_field = ResolveAttributeToDataClassCall().visit_and_resolves(node)
-            self.collected_resolve_calls[data_class_name].add(keyword_field)
-            print(f"DEBUG: resolve found: {data_class_name}.{keyword_field}") 
+            data_class_class_kw = ResolveAttributeToDataClassCall().visit_and_resolves(node)
+            self.collected_resolve_calls[data_class_class_kw.class_name].add(data_class_class_kw.field_name)
+            print(f"DEBUG: resolve found: {data_class_class_kw.class_name}.{data_class_class_kw.field_name}") 
             assert not node in self.node_to_dataclass_kw
-            self.node_to_dataclass_kw[node] = DataClassKw(dataclass_name = data_class_name, 
-                                                         dataclass_field = keyword_field)
+            self.node_to_dataclass_kw[node] = data_class_class_kw
 
         elif hasattr(node, "keywords"): 
             for kw in node.keywords:
@@ -157,8 +163,8 @@ class TransformResolves(ast.NodeTransformer):
         self.visit_cnt+=1
         ret_transform = node
         if (data_class_kw := self.node_to_dataclass_kw.get(node)) is not None: 
-            value_call = self.resolved_dataclass_kw[data_class_kw.dataclass_name].get(data_class_kw.dataclass_field)
-            id_dataclass_field =f'{data_class_kw.dataclass_name}.{data_class_kw.dataclass_field}'
+            value_call = self.resolved_dataclass_kw[data_class_kw.class_name].get(data_class_kw.field_name)
+            id_dataclass_field =f'{data_class_kw.class_name}.{data_class_kw.field_name}'
             if  value_call is not None:
                 # assert value_call is not None, f" dataclass field cound not be resolved: {id_dataclass_field}" 
                 print(f"DEBUG resolve transform: {id_dataclass_field}={ast.dump(value_call)}")
