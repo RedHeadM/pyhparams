@@ -82,7 +82,8 @@ class CollectResolveCallsNodeVisitor(ast.NodeVisitor):
             data_class_class_kw = ResolveAttributeToDataClassCall().visit_and_resolves(node)
             self.collected_resolve_calls[data_class_class_kw.class_name].add(data_class_class_kw.field_name)
             print(f"DEBUG: resolve found: {data_class_class_kw.class_name}.{data_class_class_kw.field_name}") 
-            assert len(data_class_class_kw.nested_class_define) ==1, f"not supporeded yet with nested imports {data_class_class_kw}"
+            if len(data_class_class_kw.nested_class_define) >1:
+                raise NotImplementedError("not supporeded yet with nested imports {data_class_class_kw}")
             assert not node in self.node_to_dataclass_kw
             self.node_to_dataclass_kw[node] = data_class_class_kw
 

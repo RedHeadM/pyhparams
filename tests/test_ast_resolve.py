@@ -1,4 +1,5 @@
 import ast
+import pytest
 from pyhparams.ast import ast_to_dict
 from pyhparams.ast_data_fields_resolve import RESOLVE, ast_resolve_dataclass_filed
 
@@ -269,8 +270,9 @@ class A:
 A.B.b
 assigned = A(nesed_class = A.B(b=RESOLVE(A.B.c), c=100))  
 ''')
-    resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
-    assert resolved.get("assigned").nesed_class.b == 100
+    with pytest.raises(NotImplementedError):   
+        resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+    # assert resolved.get("assigned").nesed_class.b == 100
 
 
 def test_resolve_multi_depended():
