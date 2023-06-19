@@ -123,8 +123,6 @@ from pyhparams.ast_data_fields_resolve import RESOLVE
 @dataclass
 class A:
     a: int = 1
-    b: float = 2
-    to_resolve: float = 1 # in assigned updated vale is used
     @dataclass
     class B:
         b: int = 3
@@ -144,8 +142,6 @@ from typing import List
 @dataclass
 class A:
     a: int = 1
-    b: float = 2
-    to_resolve: float = 1 # in assigned updated vale is used
     @dataclass
     class B:
         b: int = 3
@@ -165,8 +161,6 @@ from typing import Dict
 @dataclass
 class A:
     a: int = 1
-    b: float = 2
-    to_resolve: float = 1 # in assigned updated vale is used
     @dataclass
     class B:
         b: int = 3
@@ -250,7 +244,6 @@ from pyhparams.ast_data_fields_resolve import RESOLVE
 class A:
     a: int = 1
     b: float = 2
-    to_resolve: float = 1 # in assigned updated vale is used
     @dataclass
     class B:
         b: int = 3
