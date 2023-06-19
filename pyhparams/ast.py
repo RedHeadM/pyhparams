@@ -13,7 +13,10 @@ def ast_to_dict(tree: ast.Module)-> Dict[str,Any]:
     # Support load global variable in nested function of the
     # config.
     global_locals_var = {} #{"__name__":""}
-    eval(codeobj,global_locals_var,global_locals_var)
+    try:
+        eval(codeobj,global_locals_var,global_locals_var)
+    except Exception as e:
+        raise Exception(f'failed to eval ast:\n {unparse(tree)}\n with {e}') from e
 
     cfg_dict = {
         key: value

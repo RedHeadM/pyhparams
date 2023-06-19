@@ -17,14 +17,14 @@ def RESOLVE(val: T) -> T:
 class DataClassKw:
     class_name: str
     field_name: str
-    class_name_with_nested_class_define: str
+    nested_class_define: List[str] 
 
 
 class ResolveAttributeToDataClassCall(ast.NodeVisitor):
     def __init__(self)  -> None:
         self.keyword_field : Optional[str] = None
         self.data_class_name : Optional[str] = None
-        self.dataclass_name_with_nested_class_define : Optional[str] = None
+        self.dataclass_nested_class_define : List[str] = []
         self.visit_cnt = 0
 
     def visit_Attribute(self, att: ast.Attribute):
@@ -37,13 +37,17 @@ class ResolveAttributeToDataClassCall(ast.NodeVisitor):
         if isinstance(att.value, ast.Name):
             # no nested case
             self.data_class_name = att.value.id
-            self.dataclass_name_with_nested_class_define = f'{self.dataclass_name_with_nested_class_define}.{att.value.id}'
+            self.dataclass_nested_class_define.append(att.value.id)
         elif isinstance(att.value, ast.Attribute):
             # nested case: get last attr
             self.data_class_name = att.value.attr
-            self.dataclass_name_with_nested_class_define = f'{self.dataclass_name_with_nested_class_define}.{att.value.attr}'
+            self.dataclass_nested_class_define.append(att.value.attr)
         else:
             raise RuntimeError(f"not supported resolve for: {ast.dump(att)}")
+    
+        if isinstance(att.value, ast.Attribute):
+            # nested attribute case
+            self.visit_Attribute(att.value)
 
     def visit_and_resolves(self, node: ast.expr) -> DataClassKw:
         self.visit(node)
@@ -51,10 +55,14 @@ class ResolveAttributeToDataClassCall(ast.NodeVisitor):
 
         assert self.keyword_field is not None, f"resolve look up failed {ast.dump(node)}"
         assert self.data_class_name is not None, f"resolve look up failed {ast.dump(node)}"
-        assert self.dataclass_name_with_nested_class_define is not None, f"resolve look up failed {ast.dump(node)}"
+        assert len(self.dataclass_nested_class_define), f"resolve look up failed {ast.dump(node)}"
+        # reverse order 
+        if len(self.dataclass_nested_class_define):
+            self.dataclass_nested_class_define = self.dataclass_nested_class_define[::-1]
+            self.data_class_name = self.dataclass_nested_class_define[-1]
         return DataClassKw(class_name= self.data_class_name, 
                            field_name = self.keyword_field,
-                           class_name_with_nested_class_define =  self.dataclass_name_with_nested_class_define)
+                           nested_class_define =  self.dataclass_nested_class_define)
 
 class CollectResolveCallsNodeVisitor(ast.NodeVisitor):
     ''' collect all recolve instances and extracts dataclas structure'''
@@ -74,6 +82,7 @@ class CollectResolveCallsNodeVisitor(ast.NodeVisitor):
             data_class_class_kw = ResolveAttributeToDataClassCall().visit_and_resolves(node)
             self.collected_resolve_calls[data_class_class_kw.class_name].add(data_class_class_kw.field_name)
             print(f"DEBUG: resolve found: {data_class_class_kw.class_name}.{data_class_class_kw.field_name}") 
+            assert len(data_class_class_kw.nested_class_define) ==1, f"not supporeded yet with nested imports {data_class_class_kw}"
             assert not node in self.node_to_dataclass_kw
             self.node_to_dataclass_kw[node] = data_class_class_kw
 
@@ -93,9 +102,7 @@ class CollectResolveCallsNodeVisitor(ast.NodeVisitor):
 
     def visit_collect_resolves(self, node: ast.Module) -> Tuple[DefaultDict[str, set], Dict[ast.Call, DataClassKw]]:
         self.visit(node)
-        # assert len(self.collected_resolve_calls) == len(self.node_to_dataclass_kw)
         return self.collected_resolve_calls, self.node_to_dataclass_kw
-
 
 class ResolveDataClassCallsKeywordCalls(ast.NodeVisitor):
     ''' collect all recolve instances and extracts dataclass structure'''
@@ -108,8 +115,9 @@ class ResolveDataClassCallsKeywordCalls(ast.NodeVisitor):
     def visit_Call(self, node: ast.Call):
         self.visit_cnt+=1
         if  isinstance(node.func, ast.Name): 
+            # check if is a dadaclass and hast keys to resolve
             if node.func.id in self.resolve_calls:
-                dataclass_name =  node.func.id 
+                dataclass_name = node.func.id 
                 assert len(node.args) == 0, f"only keyword support dataclass={dataclass_name}: {ast.dump(node)}"
                 keys_to_resolve = self.resolve_calls[dataclass_name]
                 assert len(keys_to_resolve) > 0, f"no kw to resolve for: {ast.dump(node)}"
@@ -119,6 +127,8 @@ class ResolveDataClassCallsKeywordCalls(ast.NodeVisitor):
                     dataclass_field_name = kw.arg
                     if dataclass_field_name in keys_to_resolve:
                         print(f"INFO: Resolve dataclass from assigment: {dataclass_name}.{dataclass_field_name}={ast.dump(kw.value)}") 
+                        # if isinstance(kw.value, ast.Attribute):
+                        assert dataclass_field_name not in self.data_class_kw_value[dataclass_name], "mulitiassigment for {dataclass_name}.{dataclass_field_name}"
                         self.data_class_kw_value[dataclass_name][dataclass_field_name] = kw.value
 
         return node

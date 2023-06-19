@@ -250,27 +250,28 @@ class A:
     nesed_class: B = None
 assigned = A(nesed_class = A.B(b=RESOLVE(A.a)) )  
 ''')
-
     resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
     assert resolved.get("assigned").nesed_class.b == 1
 
-#TODO: test with class call  
-#TODO: test multi resolve  
+def test_resolve_nested_level_assign():
+    a = ast.parse(r'''
+from dataclasses import dataclass
+from pyhparams.ast_data_fields_resolve import RESOLVE
+                   
+@dataclass
+class A:
+    a: int = 1
+    @dataclass
+    class B:
+        b: int = 2
+        c: int = 3
+    nesed_class: B = None
+A.B.b
+assigned = A(nesed_class = A.B(b=RESOLVE(A.B.c), c=100))  
+''')
+    resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+    assert resolved.get("assigned").nesed_class.b == 100
 
-# from dataclasses import dataclass
-# from pyhparams.ast_data_fields_resolve import RESOLVE
-# @dataclass
-# class A:
-#     a: int = 1
-# @dataclass
-# class B:
-#     b: int = 2
-# @dataclass
-# class C:
-#     c: int = 3
-# a = A(a=4) 
-# b = B(b=RESOLVE(A.a)) 
-# c = C(c=RESOLVE(B.b)) # resolve of b only can happen if resolved before
 
 def test_resolve_multi_depended():
     a = ast.parse(r'''

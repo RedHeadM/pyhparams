@@ -91,3 +91,4 @@ b = UtilsTestParams2(z= RESOLVE(UtilsTestParams.x))
             assert conf.a.x == 10
             assert conf.a.y == 100
             assert conf.b.z == 10
+
