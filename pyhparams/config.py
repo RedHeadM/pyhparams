@@ -3,7 +3,7 @@ import ast
 import os.path as osp
 import dataclasses
 from pathlib import Path
-from typing import TypeVar, Union, Dict
+from typing import TypeVar, Union
 from pyhparams import ast as ast_helper
 from pyhparams.ast_data_fields_resolve import ast_resolve_dataclass_filed
 

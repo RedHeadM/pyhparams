@@ -1,8 +1,6 @@
 import ast
 import sys
 import itertools
-from contextlib import redirect_stdout
-from sys import modules
 from types import ModuleType
 from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
