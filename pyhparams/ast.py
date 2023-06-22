@@ -1,8 +1,6 @@
 import ast
 import sys
 import itertools
-from contextlib import redirect_stdout
-from sys import modules
 from types import ModuleType
 from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
@@ -13,7 +11,10 @@ def ast_to_dict(tree: ast.Module)-> Dict[str,Any]:
     # Support load global variable in nested function of the
     # config.
     global_locals_var = {} #{"__name__":""}
-    eval(codeobj,global_locals_var,global_locals_var)
+    try:
+        eval(codeobj,global_locals_var,global_locals_var)
+    except Exception as e:
+        raise Exception(f'failed to eval ast:\n {unparse(tree)}\n with {e}') from e
 
     cfg_dict = {
         key: value
@@ -61,7 +62,7 @@ def _merge_assign_dict(target: ast.Assign, base: ast.Assign) -> ast.Assign:
         assert len(s.targets) == 1
         assert isinstance(s.targets[0], ast.Name)
 
-    target.value = _merge_dict_call(target.value,base.value)
+    target.value = _merge_dict_call(target.value, base.value)
     return target
 
 def _merge_dict_call(target: ast.expr, base: ast.expr) -> ast.Call:
@@ -155,33 +156,58 @@ def _is_dict_assign(stmt: ast.Assign) -> bool:
 def _assign_is_dict_func_call(stmt: ast.stmt) -> bool:
     return isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Dict)
 
-def _is_dataclass_assign(assign: ast.Assign, imports: List[Union[ast.Import, ast.ImportFrom]]) -> bool:
+def is_dataclass_assign(assign: Union[ast.Assign, str], imports: List[Union[ast.Import, ast.ImportFrom]]) -> bool:
     ''' for assign check if the call is a dataclass by calling by using imports dataclasses.is_dataclass'''
-    ast_m = ast.parse("from dataclasses import is_dataclass")
     is_dataclass_args =None
     # TODO:clean up
-    if isinstance(assign.value, ast.Call):
-        assign_call = assign.value.func
-        if isinstance(assign_call, ast.Name):
-            is_dataclass_args = [assign_call] 
-        elif isinstance(assign_call, ast.Attribute):
-            is_dataclass_args = [assign_call] 
-        else: 
-            raise ValueError("check is dataclass")
-    else:
+    if isinstance(assign, str):
+        is_dataclass_args = [ast.Name(id=assign, ctx=ast.Load())]
+        assert False, f" got {assign}"
+    elif isinstance(assign, ast.Assign) and  isinstance(assign.value, ast.Call):
+        if isinstance(assign.value.func, (ast.Name, ast.Attribute)):
+            is_dataclass_args = [assign.value.func] 
+        else:
+            raise ValueError(f"check is dataclass unexpected type:{ast.dump(assign)}")
+    else: 
         return False
+    # add ast expr with assignment to check if is dataclass
+    # eg.  is_dataclass_return = is_dataclass(is_dataclass_args)
     is_dataclass_call = ast.Call(func=ast.Name(id='is_dataclass', ctx=ast.Load()), 
                         args=is_dataclass_args, keywords=[])
 
     is_dataclass_result_assign_var_name = 'is_dataclass_return'
     is_dataclass_result_assign = ast.Assign(targets=[ast.Name(id=is_dataclass_result_assign_var_name, 
             ctx=ast.Store())], value=is_dataclass_call)   
+
+    ast_m = ast.parse("from dataclasses import is_dataclass")
     ast_m.body.extend(imports)
     ast_m.body.append(is_dataclass_result_assign)
 
     ast.fix_missing_locations(ast_m)
-    # for i, c in enumerate(ast_m.body):
-    #     print(f"{i}:\n{ast.dump(c)}")
+
+    return ast_to_dict(ast_m)[is_dataclass_result_assign_var_name]
+
+def _is_dataclass_name_id(name_id: Union[str, ast.Name, ast.Attribute], imports: List[Union[ast.Import, ast.ImportFrom]]) -> bool:
+    ''' for assign check if the call is a dataclass by calling by using imports dataclasses.is_dataclass'''
+
+    if not isinstance(name_id, str):
+        name_id = ast.Name(id=name_id, ctx=ast.Load())
+    elif not isinstance(name_id, (ast.Name, ast.Attribute)):
+        raise ValueError("check is dataclass unexpected type")
+
+    is_dataclass_args = [name_id] 
+    # add ast expr with assignment to check if is dataclass
+    # eg.  is_dataclass_return = is_dataclass()
+    is_dataclass_call = ast.Call(func=ast.Name(id='is_dataclass', ctx=ast.Load()), 
+                        args=is_dataclass_args, keywords=[])
+
+    is_dataclass_result_assign_var_name = 'is_dataclass_return'
+    is_dataclass_result_assign = ast.Assign(targets=[ast.Name(id=is_dataclass_result_assign_var_name, 
+            ctx=ast.Store())], value=is_dataclass_call)   
+
+    ast_m = ast.parse("from dataclasses import is_dataclass")
+    ast_m.body.extend(imports)
+    ast_m.body.append(is_dataclass_result_assign)
 
     return ast_to_dict(ast_m)[is_dataclass_result_assign_var_name]
 
@@ -247,10 +273,9 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
                 ast_trans.visit(target)
                 assert  ast_trans.num_replacement == 1
                 fix_missing_locations_needed = True
-            elif _is_dataclass_assign(stm, imports_target) and _is_dataclass_assign(same_base_assign,imports_base):
+            elif is_dataclass_assign(stm, imports_target) and is_dataclass_assign(same_base_assign,imports_base):
                 stm_merged = _merge_assign_data_class(stm, same_base_assign)
                 # TODO: check im manipulation while iter is ok
-                print(f"stm_merged {i}:\n{ast.dump(stm_merged)}")
                 ast_trans = AstAssinTransform(stm_merged)
                 ast_trans.visit(target)
                 assert  ast_trans.num_replacement == 1
@@ -276,8 +301,8 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
     if fix_missing_locations_needed:
         ast.fix_missing_locations(target)
 
-    for i, c in enumerate(target.body):
-        print(f"{i}:\n{ast.dump(c)}")
+    # for i, c in enumerate(target.body):
+    #     print(f"{i}:\n{ast.dump(c)}")
     #
     # for i, c in enumerate(base.body):
     #     print(f"BASE {i}:\n{ast.dump(c)}")
@@ -341,6 +366,14 @@ def get_imports(codes: ast.Module) -> List[Union[ast.Import, ast.ImportFrom]]:
     stm_imports = []
     for i, stm in enumerate(codes.body):
         if _is_import(stm):
+            stm_imports.append(stm)
+    return stm_imports
+
+def get_dataclass_def(codes: ast.Module) -> List[ast.ClassDef]:
+    stm_imports = []
+    for stm in codes.body:
+        # TODO check for decorator_list better
+        if isinstance(stm, ast.ClassDef) and len(stm.decorator_list):
             stm_imports.append(stm)
     return stm_imports
 

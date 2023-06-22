@@ -1,45 +1,15 @@
 # based on OpenMMLab. All rights reserved and significant changes made to software.
 import ast
 import os.path as osp
-import types
 import dataclasses
-from argparse import Action, ArgumentParser, Namespace
-from collections import abc
 from pathlib import Path
-from typing import Any, Optional, Sequence, Tuple, Union, Dict
-from pyhparams import ast as ast_helper 
+from typing import TypeVar, Union
+from pyhparams import ast as ast_helper
+from pyhparams.ast_data_fields_resolve import ast_resolve_dataclass_filed
 
-# from addict import Dict
-# from yapf.yapflib.yapf_api import FormatCode
-
-# from mmengine.fileio import dump, load
-# from mmengine.utils import (get_installed_path,
-#                              import_modules_from_strings, is_installed)
-# from .utils import (RemoveAssignFromAST, _get_external_cfg_base_path,
-#                     _get_external_cfg_path, _get_package_and_cfg_path)
 
 BASE_KEY_ID = '_base_'
-# DELETE_KEY = '_delete_'
-# RESERVED_KEYS = ['filename', 'text', 'pretty_text', 'env_variables']
-
-# from dataclasses import dataclass
-# # default config
-# @dataclass
-# class MLConfig():
-#     data_root:str = "" 
-#     @dataclass
-#     class Trainer():
-#         lr: float  = 0.001
-#         epochs: int = 1000
-#         # dataset = torch.dataset.MINIST(data_root= "$DATA_ROOT")
-#         dataset = torch.dataset.MINIST(data_root= Config.EXPAND_VAR("DATA_ROOT", str))
-#     trainer: Trainer = Trainer()
-#
-# # config py
-# _config_ = Config(
-#             trainer = Trainer(lr = 0.1, epochs =1)
-#         )
-#     
+BASE_KEY_CONFIG_EXTRACT = '_config_'
 
 
 
@@ -66,7 +36,6 @@ class _RemoveAssignFromAST(ast.NodeTransformer):
 
 def _dict_from_file(filename: str) -> dict:
     # TODO str to pathlib
-    base_cfg_dict = {}
     if filename.endswith(('.py', '.pyhparams')):
         expr_target = ast_helper.parse_file(filename)
         # codes = _RemoveAssignFromAST(BASE_KEY).visit(expr_target)
@@ -77,7 +46,9 @@ def _dict_from_file(filename: str) -> dict:
             expr_base = ast_helper.parse_file(base_file_name)
             expr_target = ast_helper.merge(expr_target, base=expr_base)
         # Support load global variable in nested function of the
-        return ast_helper.ast_to_dict(expr_target)
+
+        resolved_epxpr_target = ast_resolve_dataclass_filed(expr_target)
+        return ast_helper.ast_to_dict(resolved_epxpr_target)
 
     elif filename.endswith(('.yml', '.yaml', '.json')):
         raise NotImplementedError(f"file not supported: {filename}")
@@ -85,13 +56,15 @@ def _dict_from_file(filename: str) -> dict:
     else:
         raise ValueError(f"file not supported: {filename}")
 
+
+_T = TypeVar("_T")
 class Config:
     @staticmethod
     def create_from_file(filename: Union[str, Path],
                  use_predefined_variables: bool = True,
                  import_custom_modules: bool = True,
-                 use_environment_variables: bool = True) -> 'Config':
-        """Build a Config instance from config file.
+                 use_environment_variables: bool = True) -> _T:
+        """Build a Config instance from config file(.py pyhparam).
 
         Args:
             filename (str or Path): Name of config file.
@@ -109,7 +82,10 @@ class Config:
         if fileExtname not in ['.py', '.json', '.yaml', '.yml']:
             raise OSError('Only py/yml/yaml/json type are not supported')
 
+
         # read config and get base files list
         dict_f = _dict_from_file(filename)
-        return dataclasses.make_dataclass('Config', dict_f)(**dict_f)
-        #     dict_f)
+        if (conf := dict_f.get(BASE_KEY_CONFIG_EXTRACT)) is not None:
+            return conf
+        else:
+            return dataclasses.make_dataclass('Config', dict_f)(**dict_f)

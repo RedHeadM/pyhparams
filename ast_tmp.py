@@ -33,15 +33,58 @@ is_data_class = is_dataclass(PARAM_SUBSTITUTE)
 
 FOO3_attr = pyhparams.PARAM_SUBSTITUTE("foo")
 # is_data_class_attr = is_dataclass(pyhparams.PARAM_SUBSTITUTE)
-dict_call = dict(name="foo")
+dict_call = dict(name="foo",bar= "lalal")
 dict_kv = {"name":"foo"}
 
 dc_kw = DataClassSimple(name="foo")
 dc_args = DataClassSimple(name="foo")
+
+from typing import TypeVar, Generic
+
+T = TypeVar("T")
+def RESOLVE(val: T) -> T:
+    return val
+
+foo1: int = RESOLVE(1.)
+foo1: int = RESOLVE(1.)
+
+@dataclass
+class A:
+    a: int 
+    b: float = 0
+assigned = A(a=10, b= 1/139.)  
+resolved = RESOLVE(A.a)
+
+@dataclass
+class A:
+    a: int = 1
+    b: float = 2
+    @dataclass
+    class B:
+        c: int = 3
+        d: float = 4
+    nested_with_resolved: B = B(c=RESOLVE(A.B.d)) # in assigned updated vale is used
+assigned = A(a=10, nested_with_resolved = B(d=1000))  
 '''
 
+from typing import TypeVar
 
 from dataclasses import dataclass, is_dataclass
+T = TypeVar("T")
+def RESOLVE(val: T) -> T:
+    return val
+
+foo1: int = RESOLVE(1.)
+foo1: int = RESOLVE(1.)
+
+@dataclass
+class A:
+    a: int = 0
+    b: float = 0
+assigned = A(a=10, b= 1/139.)  
+resolved = RESOLVE(A.a)
+
+
 @dataclass
 class DataClassSimple:
     name:int = 1
@@ -74,7 +117,6 @@ class AstClassSubstitutor(ast.NodeTransformer):
     # def visit_Str(self, node):
     name: str = 'PARAM_SUBSTITUTE____'
     value = ast.Constant(value='HHHAALLO')
-
 
     def visit_Call(self, node):
         # if isinstance(node.func, ast.Call):
