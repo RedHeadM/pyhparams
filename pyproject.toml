@@ -64,4 +64,4 @@ line-length = 120
 ##############################################
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "--cov --cov-report=term-missing"
+# addopts = "--cov --cov-report=term-missing"
