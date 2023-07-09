@@ -113,40 +113,70 @@ def _merge_keyword(target: List[ast.keyword], base: List[ast.keyword]) -> List[a
 
 def _nested_call_is_dict(assign_value: ast.expr) -> bool:
     ''' extract kwargs for dict call'''
-    match assign_value:
-        case ast.Call(
-            func=ast.Call(func=ast.Name(id='dict', ctx=ast.Load()),),
-        ):
-            return True
-        case ast.Dict():
-            return True
-        case _:
-            return False
+
+    # if sys.version_info >= (3, 10):
+    #     match assign_value:
+    #         case ast.Call(
+    #             func=ast.Call(func=ast.Name(id='dict', ctx=ast.Load()),),
+    #         ):
+    #             return True
+    #         case ast.Dict():
+    #             return True
+    #         case _:
+    #             return False
+    if  isinstance(assign_value, ast.Call) \
+        and isinstance(assign_value.func, ast.Call) \
+        and isinstance(assign_value.func.func, ast.Name) \
+        and assign_value.func.func.id == 'dict':
+        # TODO: not called in test
+        return True
+    elif  isinstance(assign_value, ast.Dict):
+        return True
+    else:
+        return False
+
+
 
 def _unpack_keywords(assign_value: ast.expr) -> Optional[List[ast.keyword]]:
     ''' extract kwargs for dict call'''
-    # assert False, f"stm_merged :\n{ast.dump(assign_value)}"
-    match assign_value:
-        case ast.Call():
-            assert assign_value.args is None or len(assign_value.args) == 0
-            return assign_value.keywords
-        case ast.Dict():
-            assert assign_value.values is not None
-            assert assign_value.keys is not None
-            # NOTE: caution a never use ast.keyword(args=... instead of ast.keyword(arg=....
-            return [ast.keyword(arg=_uppack_dict_key(k), value=v) for k, v in zip(assign_value.keys, assign_value.values) if k is not None]
-        case _:
-            return None
+    # match assign_value:
+    #     case ast.Call():
+    #         assert assign_value.args is None or len(assign_value.args) == 0
+    #         return assign_value.keywords
+    #     case ast.Dict():
+    #         assert assign_value.values is not None
+    #         assert assign_value.keys is not None
+    #         # NOTE: caution a never use ast.keyword(args=... instead of ast.keyword(arg=....
+    #         return [ast.keyword(arg=_uppack_dict_key(k), value=v) for k, v in zip(assign_value.keys, assign_value.values) if k is not None]
+    #     case _:
+    #         return None
+
+    if  isinstance(assign_value, ast.Call):
+        assert assign_value.args is None or len(assign_value.args) == 0
+        return assign_value.keywords
+    elif isinstance(assign_value, ast.Dict):
+        assert assign_value.values is not None
+        assert assign_value.keys is not None
+        # NOTE: caution a never use ast.keyword(args=... instead of ast.keyword(arg=....
+        return [ast.keyword(arg=_uppack_dict_key(k), value=v) for k, v in zip(assign_value.keys, assign_value.values) if k is not None]
+    else:
+        return None
 
 def _uppack_dict_key(key: ast.expr) -> str:
-    match key:
-        case ast.Constant():
+    # match key:
+    #     case ast.Constant():
+    #         return key.value
+    #     case None:
+    #         raise ValueError(f'got none for key {ast.dump(key)}')
+    #     case _:
+    #         return key
+
+    if  isinstance(key, ast.Constant):
             return key.value
-            # return strkey
-        case None:
-            raise ValueError(f'got none for key {ast.dump(key)}')
-        case _:
-            return key
+    elif  key is None:
+        raise ValueError(f'got none for key {ast.dump(key)}')
+    else:
+        return key
 
 def _is_dict_assign(stmt: ast.Assign) -> bool:
     # TODO: Assign(targets=[Name(id='FOO3_attr', ctx=Store())], value=Call(func=Name(id='dict', ctx=Load()), args=[], keywords=[keyword(arg='name', value=Constant(value='foo'))]))
@@ -222,12 +252,18 @@ def _body_idx_after_last_import(target: ast.Module) -> int:
 def extract_assign_base_files(expr_target: ast.Module, assign_arget_name_id:str, imports:str) -> List[str]:
     ast_m = ast.parse(imports)
     for expr in expr_target.body:
-        match expr:
-            case ast.Assign(targets = [ast.Name(),],):
-                if len(expr.targets) and expr.targets[0].id == assign_arget_name_id:
-                    ast_m.body.append(expr)
-            case _:
-                continue
+        # match expr:
+        #     case ast.Assign(targets = [ast.Name(),],):
+        #         if len(expr.targets) and expr.targets[0].id == assign_arget_name_id:
+        #             ast_m.body.append(expr)
+        #     case _:
+        #         continue
+        if isinstance(expr, ast.Assign) and \
+            len(expr.targets) and isinstance(expr.targets[0], ast.Name) and \
+            expr.targets[0].id == assign_arget_name_id:
+                ast_m.body.append(expr)
+        else:
+            continue
 
     base_files = ast_to_dict(ast_m).get(assign_arget_name_id)
     if base_files is None:

@@ -126,6 +126,13 @@ def test_ast_merge_append_dict():
     assert merged.get("base_only") == {'b':0}
     assert merged.get("target_only") == {'a':1}
 
+def test_ast_merge_append_dict_call():
+    a = ast.parse(r"target_only=dict(a=1)")
+    b = ast.parse(r"base_only=dict(b=0)")
+    merged = ast_to_dict(merge(a, base=b))
+    assert merged.get("base_only") == {'b':0}
+    assert merged.get("target_only") == {'a':1}
+
 def test_ast_merge_dict_replace_top_level():
     a = ast.parse(r"foo={'replaced': 1,'addedtarget':4}")
     b = ast.parse(r"foo={'replaced': 3,'addedbase':10}")
@@ -138,6 +145,13 @@ def test_ast_merge_dict_replace_top_level():
 def test_ast_merge_dict_nesed_1_replace():
     a = ast.parse(r"foo={'level0': {'level1':0}}")
     b = ast.parse(r"foo={'level0': {'level1':'to_be_gone'}}")
+    merged = ast_to_dict(merge(a, base=b))
+    assert "foo" in merged
+    assert merged["foo"].get('level0') == {'level1':0}
+
+def test_ast_merge_dict_nesed_1_replace_call():
+    a = ast.parse(r"foo=dict(level0=dict(level1=0))")
+    b = ast.parse(r"foo=dict(level0=dict(level1='to_be_gone'))")
     merged = ast_to_dict(merge(a, base=b))
     assert "foo" in merged
     assert merged["foo"].get('level0') == {'level1':0}
