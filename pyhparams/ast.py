@@ -139,7 +139,6 @@ def _nested_call_is_dict(assign_value: ast.expr) -> bool:
 
 def _unpack_keywords(assign_value: ast.expr) -> Optional[List[ast.keyword]]:
     ''' extract kwargs for dict call'''
-    # assert False, f"stm_merged :\n{ast.dump(assign_value)}"
     # match assign_value:
     #     case ast.Call():
     #         assert assign_value.args is None or len(assign_value.args) == 0
