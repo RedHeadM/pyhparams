@@ -13,27 +13,10 @@ BASE_KEY_ID = '_base_'
 BASE_KEY_CONFIG_EXTRACT = '_config_'
 
 
-
 def check_file_exist(filename, msg_tmpl='file "{}" does not exist'):
     if not osp.isfile(filename):
         raise FileNotFoundError(msg_tmpl.format(filename))
 
-class _RemoveAssignFromAST(ast.NodeTransformer):
-    """Remove Assign node if the target's name match the key.
-
-    Args:
-        key (str): The target name of the Assign node.
-    """
-
-    def __init__(self, key):
-        self.key = key
-
-    def visit_Assign(self, node):
-        if (isinstance(node.targets[0], ast.Name)
-                and node.targets[0].id == self.key):
-            return None
-        else:
-            return node
 
 def _expand_base_vars(filename: str, base_path_variables: Optional[Dict[str, str]]) -> str :
     filename_expand = os.path.expandvars(filename)
@@ -49,7 +32,6 @@ def _ast_from_file(filename: str, base_path_variables: Optional[Dict[str, str]])
     # TODO str to pathlib
     if filename.endswith(('.py', '.pyhparams')):
         expr_target = ast_helper.parse_file(filename)
-        # codes = _RemoveAssignFromAST(BASE_KEY).visit(expr_target)
         base_files = ast_helper.extract_assign_base_files(expr_target, BASE_KEY_ID, imports= "from pathlib import Path") 
         print(f"INFO: config loading target config: {filename}") # TODO: logging
         for base_file_name in base_files:
@@ -58,6 +40,8 @@ def _ast_from_file(filename: str, base_path_variables: Optional[Dict[str, str]])
             expr_base = ast_helper.parse_file(base_file_name)
             expr_target = ast_helper.merge(expr_target, base=expr_base)
         # Support load global variable in nested function of the
+        if ast_helper.remove_assigment(BASE_KEY_ID, expr_target) >1:
+            print("WARNING: multiple base keys are removed")
 
         resolved_epxpr_target = ast_resolve_dataclass_filed(expr_target)
         return resolved_epxpr_target
