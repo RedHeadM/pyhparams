@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Iterator
 import tempfile
 import pyhparams
+from tempfile import TemporaryDirectory
 
 @contextmanager
 def config_file(content : str, suffix :str = ".py") -> Iterator[Path]:
@@ -21,7 +22,7 @@ def test_tmp_conf_one_line():
 def test_create_from_file_single_var():
     contet_in = r"foo=0"
     with config_file(contet_in) as f:
-        conf = pyhparams.Config.create_from_file(str(f)) 
+        conf,_ = pyhparams.Config.create_from_file(str(f)) 
         assert conf.foo == 0
 
 def test_tmp_conf_one_multi_line():
@@ -30,7 +31,7 @@ bar = "val1"
 foo = 2
     '''
     with config_file(contetn_in) as f:
-        conf = pyhparams.Config.create_from_file(str(f)) 
+        conf,_ = pyhparams.Config.create_from_file(str(f)) 
         assert conf.foo == 2
         assert conf.bar == "val1"
 
@@ -46,7 +47,7 @@ will_be_changed_by_target = "val2"
 added_by_target = 10
     '''
         with config_file(conf_target) as f_target:
-            conf = pyhparams.Config.create_from_file(str(f_target)) 
+            conf,_ = pyhparams.Config.create_from_file(str(f_target)) 
             assert conf.not_touched_by_target == 2
             assert conf.will_be_changed_by_target == "val2"
             assert conf.added_by_target == 10
@@ -68,7 +69,7 @@ will_be_changed_by_target = "target1"
 added_by_target = "target2"
     '''
         with config_file(conf_target) as f_target:
-            conf = pyhparams.Config.create_from_file(str(f_target)) 
+            conf,_ = pyhparams.Config.create_from_file(str(f_target)) 
             assert conf.will_be_changed_by_target == "target1"
             assert conf.not_touched_by_target_or_base2 == 1
             assert conf.not_touched_by_target_or_base1 == 2
@@ -87,8 +88,27 @@ from pyhparams import RESOLVE
 b = UtilsTestParams2(z= RESOLVE(UtilsTestParams.x))
     '''
         with config_file(conf_target) as f_target:
-            conf = pyhparams.Config.create_from_file(str(f_target)) 
+            conf,_ = pyhparams.Config.create_from_file(str(f_target)) 
             assert conf.a.x == 10
             assert conf.a.y == 100
             assert conf.b.z == 10
+
+
+def test_tmp_conf_with_save_file_es():
+    contetn_in = r'''
+bar = "val1"
+foo = 2
+    '''
+    with config_file(contetn_in) as f, TemporaryDirectory() as dir:
+        conf, file_exe = pyhparams.Config.create_from_file(str(f), Path(dir) /"test_conf.py") 
+        assert file_exe.exists()
+        assert conf.foo == 2
+        assert conf.bar == "val1"
+        # uparse saved again and check if save
+        conf2, out_f2 = pyhparams.Config.create_from_file(file_exe) 
+        assert out_f2 is None
+
+        assert conf2.foo == 2
+        assert conf2.bar == "val1"
+
 

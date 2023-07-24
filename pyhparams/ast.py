@@ -4,6 +4,7 @@ import itertools
 from types import ModuleType
 from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
+import black
 
 def ast_to_dict(tree: ast.Module)-> Dict[str,Any]:
     ''' runs ast modules and exports local and global var at top level to dict '''
@@ -391,9 +392,19 @@ class AstLoadClassCallArgsExtrator(ast.NodeTransformer):
 def has_multi_name_assigment(tree: ast.Module) -> bool:
     return True
 
-def unparse(tree: ast.Module):
+def unparse(tree: ast.Module) ->Optional[str]:
     if sys.version_info[0] == 3 and sys.version_info[1] > 9 :
         return str(ast.unparse(tree)) 
+    return None
+
+def to_unparse_file(file_name: Union[str, Path], tree: ast.Module) -> bool:
+    if (content := unparse(tree)) is not None:
+        content = black.format_str(content, 
+                                   mode = black.FileMode(),)
+        with open(file_name, "w") as f:
+            print(content, file=f)
+        return True
+    return False
 
 def _is_import(stmt: ast.stmt) -> bool:
     return isinstance(stmt, (ast.Import,ast.ImportFrom))
