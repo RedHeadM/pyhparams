@@ -10,6 +10,7 @@ from pyhparams.ast_data_fields_resolve import ast_resolve_dataclass_filed
 import runpy
 
 
+
 BASE_KEY_ID = '_base_'
 BASE_KEY_CONFIG_EXTRACT = '_config_'
 
@@ -39,6 +40,7 @@ def _ast_from_file(filename: str, base_path_variables: Optional[Dict[str, str]])
             base_file_name = _expand_base_vars(base_file_name, base_path_variables)
             print(f"INFO: config merge with base: {base_file_name}")
             expr_base = ast_helper.parse_file(base_file_name)
+
             expr_target = ast_helper.merge(expr_target, base=expr_base)
         # Support load global variable in nested function of the
         if ast_helper.remove_assigment(BASE_KEY_ID, expr_target) >1:
@@ -52,7 +54,6 @@ def _ast_from_file(filename: str, base_path_variables: Optional[Dict[str, str]])
         # cfg_dict = load(temp_config_file.name)
     else:
         raise ValueError(f"file not supported: {filename}")
-
 
 _T = TypeVar("_T")
 class Config:
@@ -87,13 +88,8 @@ class Config:
             dict_f = ast_helper.ast_to_dict(merged_ast_from_file)
         else: 
             if ast_helper.to_unparse_file(merged_output_file, merged_ast_from_file):
-                # dict_f = ast_helper.ast_to_dict(merged_ast_from_file)
-                try:
-                    dict_f = runpy.run_path(str(merged_output_file))
-                    dict_f = {k:v for k,v in dict_f.items() if "__" not in k}
-                except Exception as e:
-                    file_path = Path(merged_output_file)
-                    raise Exception(f'failed to eval filename={file_path}:\n {file_path.read_text()}\n with {e}') from e
+                dict_f = runpy.run_path(str(merged_output_file))
+                dict_f = {k:v for k,v in dict_f.items() if "__" not in k}
                 ret_merged_output_file = merged_output_file
             else:
                 print(f"WARN: config to file failed: {filename}") 
