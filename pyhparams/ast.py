@@ -1,4 +1,5 @@
 import ast
+import runpy
 import sys
 import itertools
 from types import ModuleType
@@ -280,7 +281,10 @@ def extract_assign_base_files(expr_target: ast.Module, assign_arget_name_id:str,
 
 def parse_file(file_name: Union[Path, str]):
     with open(file_name, encoding='utf-8') as f_target:
-        return ast.parse(f_target.read())
+        try:
+            return ast.parse(f_target.read())
+        except SyntaxError as e:
+            runpy.run_path(str(file_name)) # better error msg
 
 def merge(target: ast.Module, base: ast.Module) -> ast.Module:
     # TODO merge imports
