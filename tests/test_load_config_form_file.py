@@ -1,10 +1,14 @@
-
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 import tempfile
+import warnings
 import pyhparams
 from tempfile import TemporaryDirectory
+import ast
+
+from pyhparams.ast import ast_to_dict
 
 @contextmanager
 def config_file(content : str, suffix :str = ".py") -> Iterator[Path]:
@@ -112,3 +116,53 @@ foo = 2
         assert conf2.bar == "val1"
 
 
+
+def test_tmp_conf_merge_with_base_var_name():
+    conf_base = r'''
+will_be_changed_by_target = "val1"
+not_touched_by_target = 2
+    '''
+    with TemporaryDirectory() as dir:
+        base_file_name= "base_file.py"
+        base_file_dir_var_name = "$CONF_DIR"
+        conf_target = f'''
+_base_ = "{base_file_dir_var_name}/{base_file_name}" 
+will_be_changed_by_target = "val2"
+added_by_target = 10
+    '''
+        base_path_name = Path(str(dir)) / base_file_name
+        base_path_name.write_text(conf_base)
+
+        with config_file(conf_target) as f_target:
+            base_path_vars={base_file_dir_var_name:str(dir)}
+            conf,_ = pyhparams.Config.create_from_file(str(f_target), 
+                                                       base_path_vars=base_path_vars) 
+            assert conf.not_touched_by_target == 2
+            assert conf.will_be_changed_by_target == "val2"
+            assert conf.added_by_target == 10
+
+def test_tmp_conf_check_if_base_key_is_removed():
+    if sys.version_info < (3, 9):
+        warnings.warn("test not run for python version test_name=\
+                test_tmp_conf_check_if_base_key_is_removed")
+        return
+
+    conf_base = r'''
+base="base_value"
+    '''
+    with config_file(conf_base) as f_base:
+        conf_target = f'''
+_base_ = "{f_base}" 
+target="target_value"
+    '''
+        with config_file(conf_target) as f_target, TemporaryDirectory() as dir:
+            out_put_file = Path(str(dir))/"outputfile.py"
+            conf, out_put_file = pyhparams.Config.create_from_file(str(f_target),
+                                                       merged_output_file=out_put_file,) 
+            assert conf.base == "base_value"
+            assert conf.target == "target_value"
+            assert not hasattr(conf, pyhparams.config.BASE_KEY_ID)
+            ast_merded_file = ast_to_dict(ast.parse(out_put_file.read_text()))
+            assert ast_merded_file.get("base") ==  "base_value"
+            assert ast_merded_file.get("target") ==  "target_value"
+            assert ast_merded_file.get(pyhparams.config.BASE_KEY_ID) is None
