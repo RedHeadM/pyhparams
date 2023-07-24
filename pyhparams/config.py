@@ -1,9 +1,10 @@
 # based on OpenMMLab. All rights reserved and significant changes made to software.
 import ast
 import os.path as osp
+import os
 import dataclasses
 from pathlib import Path
-from typing import TypeVar, Union, Optional,Tuple
+from typing import TypeVar, Union, Optional, Tuple, Dict
 from pyhparams import ast as ast_helper
 from pyhparams.ast_data_fields_resolve import ast_resolve_dataclass_filed
 
@@ -34,7 +35,17 @@ class _RemoveAssignFromAST(ast.NodeTransformer):
         else:
             return node
 
-def _ast_from_file(filename: str) -> ast.Module:
+def _expand_base_vars(filename: str, base_path_variables: Optional[Dict[str, str]]) -> str :
+    filename_expand = os.path.expandvars(filename)
+    if base_path_variables is not None:
+        for var_name, var_to in base_path_variables.items():
+            if var_name in filename_expand:
+                filename_expand = filename_expand.replace(var_name, var_to)
+    if filename_expand != filename: 
+        print(f"INFO: expand pase form={filename} to={filename_expand}")
+    return filename_expand
+
+def _ast_from_file(filename: str, base_path_variables: Optional[Dict[str, str]]) -> ast.Module:
     # TODO str to pathlib
     if filename.endswith(('.py', '.pyhparams')):
         expr_target = ast_helper.parse_file(filename)
@@ -42,6 +53,7 @@ def _ast_from_file(filename: str) -> ast.Module:
         base_files = ast_helper.extract_assign_base_files(expr_target, BASE_KEY_ID, imports= "from pathlib import Path") 
         print(f"INFO: config loading target config: {filename}") # TODO: logging
         for base_file_name in base_files:
+            base_file_name = _expand_base_vars(base_file_name, base_path_variables)
             print(f"INFO: config merge with base: {base_file_name}")
             expr_base = ast_helper.parse_file(base_file_name)
             expr_target = ast_helper.merge(expr_target, base=expr_base)
@@ -62,9 +74,7 @@ class Config:
     @staticmethod
     def create_from_file(filename: Union[str, Path],
                  merged_output_file: Optional[Union[str,Path]] = None,
-                 use_predefined_variables: bool = True,
-                 import_custom_modules: bool = True,
-                 use_environment_variables: bool = True) -> Tuple[_T, Optional[Path]]:
+                 base_path_vars: Optional[Dict[str, str]] = None) -> Tuple[_T, Optional[Path]]:
         """Build a Config instance from config file(.py pyhparam).
 
         Args:
@@ -85,7 +95,7 @@ class Config:
 
 
         # read config and get base files list
-        merged_ast_from_file = _ast_from_file(filename)
+        merged_ast_from_file = _ast_from_file(filename, base_path_vars)
 
         ret_merged_output_file = None
         if merged_output_file is None:

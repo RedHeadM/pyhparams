@@ -112,3 +112,27 @@ foo = 2
         assert conf2.bar == "val1"
 
 
+
+def test_tmp_conf_merge_with_base_var_name():
+    conf_base = r'''
+will_be_changed_by_target = "val1"
+not_touched_by_target = 2
+    '''
+    with TemporaryDirectory() as dir:
+        base_file_name= "base_file.py"
+        base_file_dir_var_name = "$CONF_DIR"
+        conf_target = f'''
+_base_ = "{base_file_dir_var_name}/{base_file_name}" 
+will_be_changed_by_target = "val2"
+added_by_target = 10
+    '''
+        base_path_name = Path(str(dir)) / base_file_name
+        base_path_name.write_text(conf_base)
+
+        with config_file(conf_target) as f_target:
+            base_path_vars={base_file_dir_var_name:str(dir)}
+            conf,_ = pyhparams.Config.create_from_file(str(f_target), 
+                                                       base_path_vars=base_path_vars,) 
+            assert conf.not_touched_by_target == 2
+            assert conf.will_be_changed_by_target == "val2"
+            assert conf.added_by_target == 10
