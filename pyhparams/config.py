@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TypeVar, Union, Optional, Tuple, Dict
 from pyhparams import ast as ast_helper
 from pyhparams.ast_data_fields_resolve import ast_resolve_dataclass_filed
+import runpy
 
 
 BASE_KEY_ID = '_base_'
@@ -86,7 +87,13 @@ class Config:
             dict_f = ast_helper.ast_to_dict(merged_ast_from_file)
         else: 
             if ast_helper.to_unparse_file(merged_output_file, merged_ast_from_file):
-                dict_f = ast_helper.ast_to_dict(merged_ast_from_file)
+                # dict_f = ast_helper.ast_to_dict(merged_ast_from_file)
+                try:
+                    dict_f = runpy.run_path(str(merged_output_file))
+                    dict_f = {k:v for k,v in dict_f.items() if "__" not in k}
+                except Exception as e:
+                    file_path = Path(merged_output_file)
+                    raise Exception(f'failed to eval filename={file_path}:\n {file_path.read_text()}\n with {e}') from e
                 ret_merged_output_file = merged_output_file
             else:
                 print(f"WARN: config to file failed: {filename}") 
