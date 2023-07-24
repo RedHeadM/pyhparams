@@ -393,7 +393,7 @@ def has_multi_name_assigment(tree: ast.Module) -> bool:
     return True
 
 def unparse(tree: ast.Module) ->Optional[str]:
-    if sys.version_info[0] == 3 and sys.version_info[1] > 9 :
+    if sys.version_info >= (3, 9):
         return str(ast.unparse(tree)) 
     return None
 
@@ -424,6 +424,32 @@ def get_dataclass_def(codes: ast.Module) -> List[ast.ClassDef]:
             stm_imports.append(stm)
     return stm_imports
 
+class _RemoveAssignFromAST(ast.NodeTransformer):
+    """Remove Assign node if the target's name match the key.
+
+    Args:
+        key (str): The target name of the Assign node.
+    """
+
+    def __init__(self, key:str):
+        self.key = key
+        self.rm_cnt =0
+
+    def visit_Assign(self, node):
+        if (isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id == self.key):
+
+            self.rm_cnt +=1
+            return None
+        else:
+            return node
+
+def remove_assigment(var_name:str,tree: ast.Module) -> int:
+    vister = _RemoveAssignFromAST(key = var_name)
+    vister.visit(tree)
+    return vister.rm_cnt
+
+
 if __name__ == '__main__':
 
     #  example for some development debug print
@@ -435,3 +461,4 @@ BAR = {"HHHAALLO": lataclasses.MISSING}
     codes = ast.parse(c)
     for i, c in enumerate(codes.body):
         print(f"{i}:\n{ast.dump(c)}")
+
