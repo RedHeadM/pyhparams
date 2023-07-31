@@ -245,9 +245,9 @@ def get_default(data_class, field_name):
     default_source = default_return_val["default_from_factory"]
     ast_expr_default_value = None
     print(f"INFO: resolved default value for {dataclass_name}.{dataclass_field}={default_value} source={default_source}")
-    if isinstance(default_value, (str,int, float, Path)) or default_value is None:
+    if isinstance(default_value, (str, int, float, Path)) or default_value is None:
         ast_value_expr = ast.parse(f"default_val = {default_value}").body[0]
-        assert isinstance(ast_value_expr,ast.Assign)
+        assert isinstance(ast_value_expr, ast.Assign)
         ast_expr_default_value =  ast_value_expr.value
         print(f"DEBUG: resolved default value for ast value{dataclass_name}.{dataclass_field}={ast.dump(ast_value_expr.value)}")
     else:
