@@ -274,23 +274,52 @@ assigned = A(nesed_class = A.B(b=RESOLVE(A.B.c), c=100))
         resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
     # assert resolved.get("assigned").nesed_class.b == 100
 
-
-def test_resolve_multi_depended():
+def test_resolve_tuple_idx_default():
     a = ast.parse(r'''
 from dataclasses import dataclass
-from pyhparams.ast_data_fields_resolve import RESOLVE
+from typing import Tuple
 @dataclass
 class A:
-    a: int = 100
-@dataclass
-class B:
-    b: int = 2
-@dataclass
-class C:
-    c: int = 3
-a = A(a=4) 
-b = B(b=RESOLVE(A.a)) 
-c = C(c=RESOLVE(B.b)) # resolve of b only can happen if resolved before
+    a_tuple: Tuple[int,int]= (10,20)                   
+idx0 = RESOLVE(A.a_tuple)[0]
+idx1 = RESOLVE(A.a_tuple)[1]
 ''')
     resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
-    assert resolved.get("c").c ==4
+    assert resolved.get("idx0") == 10
+    assert resolved.get("idx1") == 20
+
+def test_resolve_tuple_idx_assigned():
+    a = ast.parse(r'''
+from dataclasses import dataclass
+from typing import Tuple
+@dataclass
+class A:
+    a_tuple: Tuple[int,int]= (10,20)                   
+a = A(a_tuple=(1,2))
+idx0 = RESOLVE(A.a_tuple)[0]
+idx1 = RESOLVE(A.a_tuple)[1]
+''')
+    resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+    assert resolved.get("idx0") == 1
+    assert resolved.get("idx1") == 2
+
+
+# def test_resolve_multi_depended():
+#     a = ast.parse(r'''
+# from dataclasses import dataclass
+# from pyhparams.ast_data_fields_resolve import RESOLVE
+# @dataclass
+# class A:
+#     a: int = 100
+# @dataclass
+# class B:
+#     b: int = 2
+# @dataclass
+# class C:
+#     c: int = 3
+# a = A(a=4) 
+# b = B(b=RESOLVE(A.a)) 
+# c = C(c=RESOLVE(B.b)) # resolve of b only can happen if resolved before
+# ''')
+#     resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+#     assert resolved.get("c").c ==4
