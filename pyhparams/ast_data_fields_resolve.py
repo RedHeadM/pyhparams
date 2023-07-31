@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple, TypeVar, List, Union, Optional, Dict, DefaultDict
+from collections.abc import Iterable
 import ast
 from collections import defaultdict
 
@@ -245,11 +246,18 @@ def get_default(data_class, field_name):
     default_source = default_return_val["default_from_factory"]
     ast_expr_default_value = None
     print(f"INFO: resolved default value for {dataclass_name}.{dataclass_field}={default_value} source={default_source}")
-    if isinstance(default_value, (str, int, float, Path)) or default_value is None:
+    simple_const_value_types = (str, int, float, Path)
+    if isinstance(default_value, simple_const_value_types) or default_value is None:
         ast_value_expr = ast.parse(f"default_val = {default_value}").body[0]
         assert isinstance(ast_value_expr, ast.Assign)
         ast_expr_default_value =  ast_value_expr.value
-        print(f"DEBUG: resolved default value for ast value{dataclass_name}.{dataclass_field}={ast.dump(ast_value_expr.value)}")
+        print(f"DEBUG: resolved simple type default value for ast value{dataclass_name}.{dataclass_field}={ast.dump(ast_value_expr.value)}")
+    elif isinstance(default_value, (tuple, list, set)):
+        assert all(isinstance(v, simple_const_value_types) for v in default_value)
+        ast_value_expr = ast.parse(f"default_val = {default_value}").body[0]
+        assert isinstance(ast_value_expr, ast.Assign)
+        ast_expr_default_value =  ast_value_expr.value
+        print(f"DEBUG: resolved iterabl default value for ast value{dataclass_name}.{dataclass_field}={ast.dump(ast_value_expr.value)}")
     else:
         # also dataclasses.MISSING here
         # TODO: add import and func call to get value 
