@@ -11,14 +11,12 @@ import runpy
 
 
 
-BASE_KEY_ID = '_base_'
-BASE_KEY_CONFIG_EXTRACT = '_config_'
-
+BASE_KEY_ID = "_base_"
+BASE_KEY_CONFIG_EXTRACT = "_config_"
 
 def check_file_exist(filename, msg_tmpl='file "{}" does not exist'):
     if not osp.isfile(filename):
         raise FileNotFoundError(msg_tmpl.format(filename))
-
 
 def _expand_base_vars(filename: str, base_path_variables: Optional[Dict[str, str]]) -> str :
     filename_expand = os.path.expandvars(filename)
@@ -31,11 +29,14 @@ def _expand_base_vars(filename: str, base_path_variables: Optional[Dict[str, str
     return filename_expand
 
 def _ast_from_file(filename: str, base_path_variables: Optional[Dict[str, str]]) -> ast.Module:
+
     # TODO str to pathlib
-    if filename.endswith(('.py', '.pyhparams')):
+    if filename.endswith((".py", ".pyhparams")):
         expr_target = ast_helper.parse_file(filename)
-        base_files = ast_helper.extract_assign_base_files(expr_target, BASE_KEY_ID, imports= "from pathlib import Path") 
-        print(f"INFO: config loading target config: {filename}") # TODO: logging
+
+        base_files = ast_helper.extract_assign_base_files(expr_target, BASE_KEY_ID, imports="from pathlib import Path")
+        print(f"INFO: config loading target config: {filename}")  # TODO: logging
+
         for base_file_name in base_files:
             base_file_name = _expand_base_vars(base_file_name, base_path_variables)
             print(f"INFO: config merge with base: {base_file_name}")
@@ -49,13 +50,15 @@ def _ast_from_file(filename: str, base_path_variables: Optional[Dict[str, str]])
         resolved_epxpr_target = ast_resolve_dataclass_filed(expr_target)
         return resolved_epxpr_target
 
-    elif filename.endswith(('.yml', '.yaml', '.json')):
+    elif filename.endswith((".yml", ".yaml", ".json")):
         raise NotImplementedError(f"file not supported: {filename}")
         # cfg_dict = load(temp_config_file.name)
     else:
         raise ValueError(f"file not supported: {filename}")
 
 _T = TypeVar("_T")
+
+
 class Config:
     @staticmethod
     def create_from_file(filename: Union[str, Path],
@@ -76,9 +79,8 @@ class Config:
         filename = osp.abspath(osp.expanduser(filename))
         check_file_exist(filename)
         fileExtname = osp.splitext(filename)[1]
-        if fileExtname not in ['.py', '.json', '.yaml', '.yml']:
-            raise OSError('Only py/yml/yaml/json type are not supported')
-
+        if fileExtname not in [".py", ".json", ".yaml", ".yml"]:
+            raise OSError("Only py/yml/yaml/json type are not supported")
 
         # read config and get base files list
         merged_ast_from_file = _ast_from_file(filename, base_path_vars)
@@ -100,3 +102,4 @@ class Config:
         else:
             dc = dataclasses.make_dataclass('Config', dict_f)(**dict_f)
             return (dc, ret_merged_output_file)
+
