@@ -8,14 +8,14 @@ from pyhparams import ast as ast_helper
 from pyhparams.ast_data_fields_resolve import ast_resolve_dataclass_filed
 
 
-BASE_KEY_ID = '_base_'
-BASE_KEY_CONFIG_EXTRACT = '_config_'
-
+BASE_KEY_ID = "_base_"
+BASE_KEY_CONFIG_EXTRACT = "_config_"
 
 
 def check_file_exist(filename, msg_tmpl='file "{}" does not exist'):
     if not osp.isfile(filename):
         raise FileNotFoundError(msg_tmpl.format(filename))
+
 
 class _RemoveAssignFromAST(ast.NodeTransformer):
     """Remove Assign node if the target's name match the key.
@@ -28,19 +28,19 @@ class _RemoveAssignFromAST(ast.NodeTransformer):
         self.key = key
 
     def visit_Assign(self, node):
-        if (isinstance(node.targets[0], ast.Name)
-                and node.targets[0].id == self.key):
+        if isinstance(node.targets[0], ast.Name) and node.targets[0].id == self.key:
             return None
         else:
             return node
 
+
 def _dict_from_file(filename: str) -> dict:
     # TODO str to pathlib
-    if filename.endswith(('.py', '.pyhparams')):
+    if filename.endswith((".py", ".pyhparams")):
         expr_target = ast_helper.parse_file(filename)
         # codes = _RemoveAssignFromAST(BASE_KEY).visit(expr_target)
-        base_files = ast_helper.extract_assign_base_files(expr_target, BASE_KEY_ID, imports= "from pathlib import Path") 
-        print(f"INFO: config loading target config: {filename}") # TODO: logging
+        base_files = ast_helper.extract_assign_base_files(expr_target, BASE_KEY_ID, imports="from pathlib import Path")
+        print(f"INFO: config loading target config: {filename}")  # TODO: logging
         for base_file_name in base_files:
             print(f"INFO: config merge with base: {base_file_name}")
             expr_base = ast_helper.parse_file(base_file_name)
@@ -50,7 +50,7 @@ def _dict_from_file(filename: str) -> dict:
         resolved_epxpr_target = ast_resolve_dataclass_filed(expr_target)
         return ast_helper.ast_to_dict(resolved_epxpr_target)
 
-    elif filename.endswith(('.yml', '.yaml', '.json')):
+    elif filename.endswith((".yml", ".yaml", ".json")):
         raise NotImplementedError(f"file not supported: {filename}")
         # cfg_dict = load(temp_config_file.name)
     else:
@@ -58,12 +58,16 @@ def _dict_from_file(filename: str) -> dict:
 
 
 _T = TypeVar("_T")
+
+
 class Config:
     @staticmethod
-    def create_from_file(filename: Union[str, Path],
-                 use_predefined_variables: bool = True,
-                 import_custom_modules: bool = True,
-                 use_environment_variables: bool = True) -> _T:
+    def create_from_file(
+        filename: Union[str, Path],
+        use_predefined_variables: bool = True,
+        import_custom_modules: bool = True,
+        use_environment_variables: bool = True,
+    ) -> _T:
         """Build a Config instance from config file(.py pyhparam).
 
         Args:
@@ -79,13 +83,12 @@ class Config:
         filename = osp.abspath(osp.expanduser(filename))
         check_file_exist(filename)
         fileExtname = osp.splitext(filename)[1]
-        if fileExtname not in ['.py', '.json', '.yaml', '.yml']:
-            raise OSError('Only py/yml/yaml/json type are not supported')
-
+        if fileExtname not in [".py", ".json", ".yaml", ".yml"]:
+            raise OSError("Only py/yml/yaml/json type are not supported")
 
         # read config and get base files list
         dict_f = _dict_from_file(filename)
         if (conf := dict_f.get(BASE_KEY_CONFIG_EXTRACT)) is not None:
             return conf
         else:
-            return dataclasses.make_dataclass('Config', dict_f)(**dict_f)
+            return dataclasses.make_dataclass("Config", dict_f)(**dict_f)

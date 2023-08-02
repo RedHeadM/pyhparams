@@ -5,26 +5,27 @@ from types import ModuleType
 from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
 
-def ast_to_dict(tree: ast.Module)-> Dict[str,Any]:
-    ''' runs ast modules and exports local and global var at top level to dict '''
-    codeobj = compile(tree, '', mode='exec')
+
+def ast_to_dict(tree: ast.Module) -> Dict[str, Any]:
+    """runs ast modules and exports local and global var at top level to dict"""
+    codeobj = compile(tree, "", mode="exec")
     # Support load global variable in nested function of the
     # config.
-    global_locals_var = {} #{"__name__":""}
+    global_locals_var = {}  # {"__name__":""}
     try:
-        eval(codeobj,global_locals_var,global_locals_var)
+        eval(codeobj, global_locals_var, global_locals_var)
     except Exception as e:
-        raise Exception(f'failed to eval ast:\n {unparse(tree)}\n with {e}') from e
+        raise Exception(f"failed to eval ast:\n {unparse(tree)}\n with {e}") from e
 
     cfg_dict = {
         key: value
         for key, value in global_locals_var.items()
-        if (not key.startswith('__')) and (not isinstance(value,ModuleType))
+        if (not key.startswith("__")) and (not isinstance(value, ModuleType))
     }
     return cfg_dict
 
-def _get_same_assign(target: ast.Assign, base: List[ast.Assign] ) -> Optional[ast.Assign]:
 
+def _get_same_assign(target: ast.Assign, base: List[ast.Assign]) -> Optional[ast.Assign]:
     assert isinstance(target, ast.Assign)
     assert len(target.targets) == 1
     assert isinstance(target.targets[0], ast.Name)
@@ -33,10 +34,11 @@ def _get_same_assign(target: ast.Assign, base: List[ast.Assign] ) -> Optional[as
         assert isinstance(target, ast.Assign)
         assert isinstance(stm.targets[0], ast.Name)
         assert len(stm.targets) == 1
-        if stm.targets[0].id is  target.targets[0].id:
-        # if stm.targets[0] is  target.targets[0]: # TODO
+        if stm.targets[0].id is target.targets[0].id:
+            # if stm.targets[0] is  target.targets[0]: # TODO
             return stm
     return None
+
 
 def compare(node1, node2):
     ## TODO: simpler func here
@@ -44,7 +46,7 @@ def compare(node1, node2):
         return False
     if isinstance(node1, ast.AST):
         for k, v in vars(node1).items():
-            if k in ('lineno', 'col_offset', 'ctx'):
+            if k in ("lineno", "col_offset", "ctx"):
                 continue
             if not compare(v, getattr(node2, k)):
                 return False
@@ -65,15 +67,20 @@ def _merge_assign_dict(target: ast.Assign, base: ast.Assign) -> ast.Assign:
     target.value = _merge_dict_call(target.value, base.value)
     return target
 
+
 def _merge_dict_call(target: ast.expr, base: ast.expr) -> ast.Call:
-    kw_base  = _unpack_keywords(base)
-    kw_target  = _unpack_keywords(target)
-    assert kw_base is not None and kw_target is not None # TODO 
+    kw_base = _unpack_keywords(base)
+    kw_target = _unpack_keywords(target)
+    assert kw_base is not None and kw_target is not None  # TODO
     kw_merged = _merge_keyword(kw_target, kw_base)
     # allway map ast.Dict to ast.Call with function dict
-    return ast.Call(func=ast.Name(id='dict', ctx=ast.Load()), args=[], keywords=kw_merged) 
+    return ast.Call(func=ast.Name(id="dict", ctx=ast.Load()), args=[], keywords=kw_merged)
 
-def _merge_assign_data_class(target: ast.Assign, base: ast.Assign, ) -> ast.Assign:
+
+def _merge_assign_data_class(
+    target: ast.Assign,
+    base: ast.Assign,
+) -> ast.Assign:
     # check if both are expected dict type
     for s in (target, base):
         assert isinstance(s, ast.Assign)
@@ -81,13 +88,14 @@ def _merge_assign_data_class(target: ast.Assign, base: ast.Assign, ) -> ast.Assi
         assert isinstance(s.targets[0], ast.Name)
         assert isinstance(s.value, ast.Call)
 
-    kw_base  = _unpack_keywords(base.value)
+    kw_base = _unpack_keywords(base.value)
     kw_target = _unpack_keywords(target.value)
-    assert kw_base is not None and kw_target is not None # TODO 
+    assert kw_base is not None and kw_target is not None  # TODO
     kw_merged = _merge_keyword(kw_target, kw_base)
     assert isinstance(target.value, ast.Call)
-    target.value.keywords = kw_merged 
+    target.value.keywords = kw_merged
     return target
+
 
 def _merge_keyword(target: List[ast.keyword], base: List[ast.keyword]) -> List[ast.keyword]:
     target_kw = {k.arg: k.value for k in target}
@@ -97,22 +105,24 @@ def _merge_keyword(target: List[ast.keyword], base: List[ast.keyword]) -> List[a
 
     for k, v in target_kw.items():
         assert k is not None
-        assert isinstance(k, (ast.Constant, str)), f'dict key must be const got: {ast.dump(k)}'
-        
-        if (same_value_base := base_kw.get(k)) is not None and \
-            _nested_call_is_dict(same_value_base) and _nested_call_is_dict(v):
-                # recusive call for now
-                merged_kew[k] = _merge_dict_call(v, same_value_base) 
-            # TODO: nested dataclasses
+        assert isinstance(k, (ast.Constant, str)), f"dict key must be const got: {ast.dump(k)}"
+
+        if (
+            (same_value_base := base_kw.get(k)) is not None
+            and _nested_call_is_dict(same_value_base)
+            and _nested_call_is_dict(v)
+        ):
+            # recusive call for now
+            merged_kew[k] = _merge_dict_call(v, same_value_base)
+        # TODO: nested dataclasses
         else:
             # keep value from target
             merged_kew[k] = v
     return [ast.keyword(arg=k, value=v) for k, v in merged_kew.items()]
 
 
-
 def _nested_call_is_dict(assign_value: ast.expr) -> bool:
-    ''' extract kwargs for dict call'''
+    """extract kwargs for dict call"""
 
     # if sys.version_info >= (3, 10):
     #     match assign_value:
@@ -124,21 +134,22 @@ def _nested_call_is_dict(assign_value: ast.expr) -> bool:
     #             return True
     #         case _:
     #             return False
-    if  isinstance(assign_value, ast.Call) \
-        and isinstance(assign_value.func, ast.Call) \
-        and isinstance(assign_value.func.func, ast.Name) \
-        and assign_value.func.func.id == 'dict':
+    if (
+        isinstance(assign_value, ast.Call)
+        and isinstance(assign_value.func, ast.Call)
+        and isinstance(assign_value.func.func, ast.Name)
+        and assign_value.func.func.id == "dict"
+    ):
         # TODO: not called in test
         return True
-    elif  isinstance(assign_value, ast.Dict):
+    elif isinstance(assign_value, ast.Dict):
         return True
     else:
         return False
 
 
-
 def _unpack_keywords(assign_value: ast.expr) -> Optional[List[ast.keyword]]:
-    ''' extract kwargs for dict call'''
+    """extract kwargs for dict call"""
     # match assign_value:
     #     case ast.Call():
     #         assert assign_value.args is None or len(assign_value.args) == 0
@@ -151,16 +162,21 @@ def _unpack_keywords(assign_value: ast.expr) -> Optional[List[ast.keyword]]:
     #     case _:
     #         return None
 
-    if  isinstance(assign_value, ast.Call):
+    if isinstance(assign_value, ast.Call):
         assert assign_value.args is None or len(assign_value.args) == 0
         return assign_value.keywords
     elif isinstance(assign_value, ast.Dict):
         assert assign_value.values is not None
         assert assign_value.keys is not None
         # NOTE: caution a never use ast.keyword(args=... instead of ast.keyword(arg=....
-        return [ast.keyword(arg=_uppack_dict_key(k), value=v) for k, v in zip(assign_value.keys, assign_value.values) if k is not None]
+        return [
+            ast.keyword(arg=_uppack_dict_key(k), value=v)
+            for k, v in zip(assign_value.keys, assign_value.values)
+            if k is not None
+        ]
     else:
         return None
+
 
 def _uppack_dict_key(key: ast.expr) -> str:
     # match key:
@@ -171,43 +187,46 @@ def _uppack_dict_key(key: ast.expr) -> str:
     #     case _:
     #         return key
 
-    if  isinstance(key, ast.Constant):
-            return key.value
-    elif  key is None:
-        raise ValueError(f'got none for key {ast.dump(key)}')
+    if isinstance(key, ast.Constant):
+        return key.value
+    elif key is None:
+        raise ValueError(f"got none for key {ast.dump(key)}")
     else:
         return key
+
 
 def _is_dict_assign(stmt: ast.Assign) -> bool:
     # TODO: Assign(targets=[Name(id='FOO3_attr', ctx=Store())], value=Call(func=Name(id='dict', ctx=Load()), args=[], keywords=[keyword(arg='name', value=Constant(value='foo'))]))
     assert isinstance(stmt, ast.Assign)
     return isinstance(stmt.value, ast.Dict) or _assign_is_dict_func_call(stmt)
 
+
 def _assign_is_dict_func_call(stmt: ast.stmt) -> bool:
     return isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Dict)
 
+
 def is_dataclass_assign(assign: Union[ast.Assign, str], imports: List[Union[ast.Import, ast.ImportFrom]]) -> bool:
-    ''' for assign check if the call is a dataclass by calling by using imports dataclasses.is_dataclass'''
-    is_dataclass_args =None
+    """for assign check if the call is a dataclass by calling by using imports dataclasses.is_dataclass"""
+    is_dataclass_args = None
     # TODO:clean up
     if isinstance(assign, str):
         is_dataclass_args = [ast.Name(id=assign, ctx=ast.Load())]
         assert False, f" got {assign}"
-    elif isinstance(assign, ast.Assign) and  isinstance(assign.value, ast.Call):
+    elif isinstance(assign, ast.Assign) and isinstance(assign.value, ast.Call):
         if isinstance(assign.value.func, (ast.Name, ast.Attribute)):
-            is_dataclass_args = [assign.value.func] 
+            is_dataclass_args = [assign.value.func]
         else:
             raise ValueError(f"check is dataclass unexpected type:{ast.dump(assign)}")
-    else: 
+    else:
         return False
     # add ast expr with assignment to check if is dataclass
     # eg.  is_dataclass_return = is_dataclass(is_dataclass_args)
-    is_dataclass_call = ast.Call(func=ast.Name(id='is_dataclass', ctx=ast.Load()), 
-                        args=is_dataclass_args, keywords=[])
+    is_dataclass_call = ast.Call(func=ast.Name(id="is_dataclass", ctx=ast.Load()), args=is_dataclass_args, keywords=[])
 
-    is_dataclass_result_assign_var_name = 'is_dataclass_return'
-    is_dataclass_result_assign = ast.Assign(targets=[ast.Name(id=is_dataclass_result_assign_var_name, 
-            ctx=ast.Store())], value=is_dataclass_call)   
+    is_dataclass_result_assign_var_name = "is_dataclass_return"
+    is_dataclass_result_assign = ast.Assign(
+        targets=[ast.Name(id=is_dataclass_result_assign_var_name, ctx=ast.Store())], value=is_dataclass_call
+    )
 
     ast_m = ast.parse("from dataclasses import is_dataclass")
     ast_m.body.extend(imports)
@@ -217,23 +236,26 @@ def is_dataclass_assign(assign: Union[ast.Assign, str], imports: List[Union[ast.
 
     return ast_to_dict(ast_m)[is_dataclass_result_assign_var_name]
 
-def _is_dataclass_name_id(name_id: Union[str, ast.Name, ast.Attribute], imports: List[Union[ast.Import, ast.ImportFrom]]) -> bool:
-    ''' for assign check if the call is a dataclass by calling by using imports dataclasses.is_dataclass'''
+
+def _is_dataclass_name_id(
+    name_id: Union[str, ast.Name, ast.Attribute], imports: List[Union[ast.Import, ast.ImportFrom]]
+) -> bool:
+    """for assign check if the call is a dataclass by calling by using imports dataclasses.is_dataclass"""
 
     if not isinstance(name_id, str):
         name_id = ast.Name(id=name_id, ctx=ast.Load())
     elif not isinstance(name_id, (ast.Name, ast.Attribute)):
         raise ValueError("check is dataclass unexpected type")
 
-    is_dataclass_args = [name_id] 
+    is_dataclass_args = [name_id]
     # add ast expr with assignment to check if is dataclass
     # eg.  is_dataclass_return = is_dataclass()
-    is_dataclass_call = ast.Call(func=ast.Name(id='is_dataclass', ctx=ast.Load()), 
-                        args=is_dataclass_args, keywords=[])
+    is_dataclass_call = ast.Call(func=ast.Name(id="is_dataclass", ctx=ast.Load()), args=is_dataclass_args, keywords=[])
 
-    is_dataclass_result_assign_var_name = 'is_dataclass_return'
-    is_dataclass_result_assign = ast.Assign(targets=[ast.Name(id=is_dataclass_result_assign_var_name, 
-            ctx=ast.Store())], value=is_dataclass_call)   
+    is_dataclass_result_assign_var_name = "is_dataclass_return"
+    is_dataclass_result_assign = ast.Assign(
+        targets=[ast.Name(id=is_dataclass_result_assign_var_name, ctx=ast.Store())], value=is_dataclass_call
+    )
 
     ast_m = ast.parse("from dataclasses import is_dataclass")
     ast_m.body.extend(imports)
@@ -242,14 +264,15 @@ def _is_dataclass_name_id(name_id: Union[str, ast.Name, ast.Attribute], imports:
     return ast_to_dict(ast_m)[is_dataclass_result_assign_var_name]
 
 
-def _body_idx_after_last_import(target: ast.Module) -> int: 
-    for i, stmt in  enumerate(reversed(target.body)):
+def _body_idx_after_last_import(target: ast.Module) -> int:
+    for i, stmt in enumerate(reversed(target.body)):
         if _is_import(stmt):
-            return len(target.body)-i 
+            return len(target.body) - i
 
     return 0
 
-def extract_assign_base_files(expr_target: ast.Module, assign_arget_name_id:str, imports:str) -> List[str]:
+
+def extract_assign_base_files(expr_target: ast.Module, assign_arget_name_id: str, imports: str) -> List[str]:
     ast_m = ast.parse(imports)
     for expr in expr_target.body:
         # match expr:
@@ -258,10 +281,13 @@ def extract_assign_base_files(expr_target: ast.Module, assign_arget_name_id:str,
         #             ast_m.body.append(expr)
         #     case _:
         #         continue
-        if isinstance(expr, ast.Assign) and \
-            len(expr.targets) and isinstance(expr.targets[0], ast.Name) and \
-            expr.targets[0].id == assign_arget_name_id:
-                ast_m.body.append(expr)
+        if (
+            isinstance(expr, ast.Assign)
+            and len(expr.targets)
+            and isinstance(expr.targets[0], ast.Name)
+            and expr.targets[0].id == assign_arget_name_id
+        ):
+            ast_m.body.append(expr)
         else:
             continue
 
@@ -270,16 +296,18 @@ def extract_assign_base_files(expr_target: ast.Module, assign_arget_name_id:str,
         return []
     elif isinstance(base_files, str):
         return [base_files]
-    elif isinstance(base_files, list) and all((isinstance(v,str) for v in base_files)): 
+    elif isinstance(base_files, list) and all((isinstance(v, str) for v in base_files)):
         return base_files
     else:
-        raise ValueError(f"Config base file type not supported, must be str or List[str] got value={base_files} type={type(base_files)}")
-
+        raise ValueError(
+            f"Config base file type not supported, must be str or List[str] got value={base_files} type={type(base_files)}"
+        )
 
 
 def parse_file(file_name: Union[Path, str]):
-    with open(file_name, encoding='utf-8') as f_target:
+    with open(file_name, encoding="utf-8") as f_target:
         return ast.parse(f_target.read())
+
 
 def merge(target: ast.Module, base: ast.Module) -> ast.Module:
     # TODO merge imports
@@ -292,7 +320,7 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
     imports_target = get_imports(base)
 
     for i, stm in enumerate(target.body):
-        if not isinstance(stm,ast.Assign):
+        if not isinstance(stm, ast.Assign):
             continue
         # merge or add assignment
 
@@ -307,14 +335,14 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
                 # TODO: check im manipulation while iter is ok
                 ast_trans = AstAssinTransform(stm_merged)
                 ast_trans.visit(target)
-                assert  ast_trans.num_replacement == 1
+                assert ast_trans.num_replacement == 1
                 fix_missing_locations_needed = True
-            elif is_dataclass_assign(stm, imports_target) and is_dataclass_assign(same_base_assign,imports_base):
+            elif is_dataclass_assign(stm, imports_target) and is_dataclass_assign(same_base_assign, imports_base):
                 stm_merged = _merge_assign_data_class(stm, same_base_assign)
                 # TODO: check im manipulation while iter is ok
                 ast_trans = AstAssinTransform(stm_merged)
                 ast_trans.visit(target)
-                assert  ast_trans.num_replacement == 1
+                assert ast_trans.num_replacement == 1
                 fix_missing_locations_needed = True
 
     # add base imports to target at top via revered order, skip merged assignments
@@ -327,7 +355,7 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
         #     continue
         # TODO: perf iter to get idx can be avoided
         target_idx_blow_import = _body_idx_after_last_import(target)
-        if isinstance(stm_base, ast.Assign) :
+        if isinstance(stm_base, ast.Assign):
             assert isinstance(stm_base.targets[0], ast.Name)
             if stm_base.targets[0].id not in base_assigments_id_merged:
                 target.body.insert(target_idx_blow_import, stm_base)
@@ -344,8 +372,10 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
     #     print(f"BASE {i}:\n{ast.dump(c)}")
     return target
 
+
 class AstAssinTransform(ast.NodeTransformer):
-    ''' extracts args for class a call'''
+    """extracts args for class a call"""
+
     def __init__(self, new_assign: ast.Assign):
         self.new_assign = new_assign
         self.num_replacement = 0
@@ -359,24 +389,25 @@ class AstAssinTransform(ast.NodeTransformer):
 
         if isinstance(node.targets[0], ast.Name):
             if self.new_assign.targets[0] == node.targets[0]:
-                self.num_replacement +=1
+                self.num_replacement += 1
                 return self.new_assign
         return node
 
+
 class AstLoadClassCallArgsExtrator(ast.NodeTransformer):
-    ''' extracts args for class a call'''
-    def __init__(self,  class_atrr: Optional[str], class_name:str):
+    """extracts args for class a call"""
+
+    def __init__(self, class_atrr: Optional[str], class_name: str):
         self.class_name = class_name
         self.class_module = class_atrr
         # collect args and kwargs
         self.collected_args: List[ast.expr] = []
 
-    
     def visit_Call(self, node):
         # class is used to create a class
-        assert isinstance(node, ast.Call) #k
+        assert isinstance(node, ast.Call)  # k
         if isinstance(node.func, ast.Name) and isinstance(node.func.ctx, ast.Load):
-            #class definition is local or imorted with "form xyz import TheClass"
+            # class definition is local or imorted with "form xyz import TheClass"
             if node.func.id == self.class_name:
                 self.collected_args.extend(node.args)
         elif isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
@@ -388,15 +419,19 @@ class AstLoadClassCallArgsExtrator(ast.NodeTransformer):
         # visit all Call create for assignment with visit_Call
         return self.generic_visit(node)
 
+
 def has_multi_name_assigment(tree: ast.Module) -> bool:
     return True
 
+
 def unparse(tree: ast.Module):
-    if sys.version_info[0] == 3 and sys.version_info[1] > 9 :
-        return str(ast.unparse(tree)) 
+    if sys.version_info[0] == 3 and sys.version_info[1] > 9:
+        return str(ast.unparse(tree))
+
 
 def _is_import(stmt: ast.stmt) -> bool:
-    return isinstance(stmt, (ast.Import,ast.ImportFrom))
+    return isinstance(stmt, (ast.Import, ast.ImportFrom))
+
 
 def get_imports(codes: ast.Module) -> List[Union[ast.Import, ast.ImportFrom]]:
     stm_imports = []
@@ -404,6 +439,7 @@ def get_imports(codes: ast.Module) -> List[Union[ast.Import, ast.ImportFrom]]:
         if _is_import(stm):
             stm_imports.append(stm)
     return stm_imports
+
 
 def get_dataclass_def(codes: ast.Module) -> List[ast.ClassDef]:
     stm_imports = []
@@ -413,13 +449,13 @@ def get_dataclass_def(codes: ast.Module) -> List[ast.ClassDef]:
             stm_imports.append(stm)
     return stm_imports
 
-if __name__ == '__main__':
 
+if __name__ == "__main__":
     #  example for some development debug print
-    c = r'''
+    c = r"""
 BAR = 1
 BAR = {"HHHAALLO": lataclasses.MISSING}
-'''
+"""
 
     codes = ast.parse(c)
     for i, c in enumerate(codes.body):
