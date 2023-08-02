@@ -128,7 +128,6 @@ resolved2 = (RESOLVE(A.a),)
     assert resolved.get("resolved2")[0] == 10
 
 
-# TODO set
 
 
 def test_resolve_nested_data_class_defined_at_top_level():
@@ -433,6 +432,30 @@ idx1 = RESOLVE(A.a_tuple)[1]
     resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
     assert resolved.get("idx0") == 10
     assert resolved.get("idx1") == 20
+
+from typing import NamedTuple
+
+# TODO: ClassDeff is not added only imports
+# def test_resolve_namedTuple_idx_default():
+#     a = ast.parse(
+#         r"""
+# from dataclasses import dataclass,fields
+# from typing import NamedTuple
+# class TestNamedTuple(NamedTuple):
+#     x:int=0
+#     y:int=1
+#
+# @dataclass
+# class A:
+#     a_tuple: TestNamedTuple= TestNamedTuple(10,20)                   
+# idx0 = RESOLVE(A.a_tuple)[0]
+# idx1 = RESOLVE(A.a_tuple)[1]
+# """
+#     )
+#     resolved = ast_to_dict(ast_resolve_dataclass_filed(a))
+#     assert resolved.get("idx0") == 10
+#     assert resolved.get("idx1") == 20
+
 
 
 def test_resolve_tuple_idx_assigned():

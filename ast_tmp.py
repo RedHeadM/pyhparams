@@ -9,18 +9,17 @@ import sys
 from dataclasses import is_dataclass
 
 c = r"""
-from dataclasses import dataclass
-from pyhparams.ast_data_fields_resolve import RESOLVE
-from typing import Dict
-                   
-@dataclass
-class B:
-    nesed_class_level2: Dict[str,int]
+from dataclasses import dataclass,fields
+from typing import NamedTuple
+class TestNamedTuple(NamedTuple):
+    x:int=0
+    y:int=1
+
 @dataclass
 class A:
-    b: B 
-    a: int = 1
-assigned = A(a=100, b =B({"val":RESOLVE(A.a)}))  
+    a_tuple: TestNamedTuple= TestNamedTuple(10,20)                   
+idx0 = RESOLVE(A.a_tuple)[0]
+idx1 = RESOLVE(A.a_tuple)[1]
 """
 
 from typing import TypeVar
