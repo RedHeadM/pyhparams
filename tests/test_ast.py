@@ -1,6 +1,7 @@
 import ast
 
 from pathlib import Path
+
 from pyhparams.ast import (
     ast_to_dict,
     AstLoadClassCallArgsExtrator,
@@ -9,7 +10,9 @@ from pyhparams.ast import (
     get_imports,
     is_dataclass_assign,
     _unpack_keywords,
+    remove_assigment,
 )
+
 from .helper import TestParams
 
 
@@ -25,10 +28,20 @@ def test_ast_to_dict_dict():
     assert d.get("var1").get("foo") == 12
 
 
+
 def test_ast_imports_none():
     c = r'var1="foo"'
     d = get_imports(ast.parse(c))
     assert len(d) == 0
+
+def test_ast_remove():
+    c = r'a="foo";b="bar"'
+    p = ast.parse(c)
+    remove_assigment("b", p)
+    d = ast_to_dict(p)
+    assert d.get("a") == "foo"
+    assert d.get("b") is None
+
 
 
 def test_ast_compare():

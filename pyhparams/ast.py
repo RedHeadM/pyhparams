@@ -1,9 +1,11 @@
 import ast
+import runpy
 import sys
 import itertools
 from types import ModuleType
 from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
+import black
 
 
 def ast_to_dict(tree: ast.Module) -> Dict[str, Any]:
@@ -305,8 +307,12 @@ def extract_assign_base_files(expr_target: ast.Module, assign_arget_name_id: str
 
 
 def parse_file(file_name: Union[Path, str]):
-    with open(file_name, encoding="utf-8") as f_target:
-        return ast.parse(f_target.read())
+
+    with open(file_name, encoding='utf-8') as f_target:
+        try:
+            return ast.parse(f_target.read())
+        except SyntaxError as e:
+            runpy.run_path(str(file_name)) # better error msg
 
 
 def merge(target: ast.Module, base: ast.Module) -> ast.Module:
@@ -424,10 +430,19 @@ def has_multi_name_assigment(tree: ast.Module) -> bool:
     return True
 
 
-def unparse(tree: ast.Module):
-    if sys.version_info[0] == 3 and sys.version_info[1] > 9:
-        return str(ast.unparse(tree))
+def unparse(tree: ast.Module) ->Optional[str]:
+    if sys.version_info >= (3, 9):
+        return str(ast.unparse(tree)) 
+    return None
 
+def to_unparse_file(file_name: Union[str, Path], tree: ast.Module) -> bool:
+    if (content := unparse(tree)) is not None:
+        content = black.format_str(content, 
+                                   mode = black.FileMode(),)
+        with open(file_name, "w") as f:
+            print(content, file=f)
+        return True
+    return False
 
 def _is_import(stmt: ast.stmt) -> bool:
     return isinstance(stmt, (ast.Import, ast.ImportFrom))
@@ -449,6 +464,31 @@ def get_dataclass_def(codes: ast.Module) -> List[ast.ClassDef]:
             stm_imports.append(stm)
     return stm_imports
 
+class _RemoveAssignFromAST(ast.NodeTransformer):
+    """Remove Assign node if the target's name match the key.
+
+    Args:
+        key (str): The target name of the Assign node.
+    """
+
+    def __init__(self, key:str):
+        self.key = key
+        self.rm_cnt =0
+
+    def visit_Assign(self, node):
+        if (isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id == self.key):
+
+            self.rm_cnt +=1
+            return None
+        else:
+            return node
+
+def remove_assigment(var_name:str,tree: ast.Module) -> int:
+    vister = _RemoveAssignFromAST(key = var_name)
+    vister.visit(tree)
+    return vister.rm_cnt
+
 
 if __name__ == "__main__":
     #  example for some development debug print
@@ -460,3 +500,4 @@ BAR = {"HHHAALLO": lataclasses.MISSING}
     codes = ast.parse(c)
     for i, c in enumerate(codes.body):
         print(f"{i}:\n{ast.dump(c)}")
+
