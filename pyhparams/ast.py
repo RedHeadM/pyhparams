@@ -59,22 +59,22 @@ def compare(node1, node2):
         return node1 == node2
 
 
-def _merge_assign_dict(target: ast.Assign, base: ast.Assign) -> ast.Assign:
+def _merge_assign_dict(target: ast.Assign, base: ast.Assign,target_imports: Optional[List[Union[ast.Import, ast.ImportFrom]]]) -> ast.Assign:
     # check if both are expected dict type
     for s in (target, base):
         assert isinstance(s, ast.Assign)
         assert len(s.targets) == 1
         assert isinstance(s.targets[0], ast.Name)
 
-    target.value = _merge_dict_call(target.value, base.value)
+    target.value = _merge_dict_call(target.value, base.value, target_imports)
     return target
 
 
-def _merge_dict_call(target: ast.expr, base: ast.expr) -> ast.Call:
+def _merge_dict_call(target: ast.expr, base: ast.expr, target_imports: Optional[List[Union[ast.Import, ast.ImportFrom]]]) -> ast.Call:
     kw_base = _unpack_keywords(base)
     kw_target = _unpack_keywords(target)
     assert kw_base is not None and kw_target is not None  # TODO
-    kw_merged = _merge_keyword(kw_target, kw_base, None)
+    kw_merged = _merge_keyword(kw_target, kw_base, target_imports)
     # allway map ast.Dict to ast.Call with function dict
     return ast.Call(func=ast.Name(id="dict", ctx=ast.Load()), args=[], keywords=kw_merged)
 
@@ -105,28 +105,34 @@ def _merge_data_class_call(
     kw_base = _unpack_keywords(base)
     kw_target = _unpack_keywords(target)
     assert kw_base is not None and kw_target is not None  # TODO
-    kw_merged = _merge_keyword(kw_target, kw_base, target_imports)
+    kw_merged = _merge_keyword(kw_target, kw_base, target_imports, no_dict_merge=True)
     target.keywords = kw_merged
     return target
 
 
-def _merge_keyword(target: List[ast.keyword], base: List[ast.keyword], import_target: Optional[List[Union[ast.Import, ast.ImportFrom]]]) -> List[ast.keyword]:
+def _merge_keyword(target: List[ast.keyword], base: List[ast.keyword], import_target: Optional[List[Union[ast.Import, ast.ImportFrom]]], no_dict_merge: bool=False) -> List[ast.keyword]:
     target_kw = {k.arg: k.value for k in target}
     base_kw = {k.arg: k.value for k in base}
     merged_kew = dict(base_kw)
-    # assert False, f"{[ast.dump(k) for k in target]}"
+    print("DEBUG _merge_keyword call")
+
+
+    if import_target is not None:
+        print(f"DEBUG: _merge_keyword import_target: {len(import_target)}") # __AUTO_GENERATED_PRINT_VAR_END__
 
     for k, v in target_kw.items():
         assert k is not None
         assert isinstance(k, (ast.Constant, str)), f"dict key must be const got: {ast.dump(k)}"
 
         if (
+            not no_dict_merge and
             (same_value_base := base_kw.get(k)) is not None
             and _nested_call_is_dict(same_value_base)
             and _nested_call_is_dict(v)
         ):
             # recusive call for now
-            merged_kew[k] = _merge_dict_call(v, same_value_base)
+            merged_kew[k] = _merge_dict_call(v, same_value_base, import_target)
+
 
         elif (
             (same_value_base := base_kw.get(k)) is not None
@@ -134,7 +140,6 @@ def _merge_keyword(target: List[ast.keyword], base: List[ast.keyword], import_ta
             # and is_dataclass(v, import_target)
             and is_dataclass_same(v, same_value_base, import_target)
         ):
-            # recusive call for now
             assert isinstance(same_value_base, ast.Call)
             assert isinstance(v, ast.Call)
             merged_kew[k] = _merge_data_class_call(v, same_value_base, import_target)
@@ -323,6 +328,9 @@ def is_dataclass_same(assign_target: Union[ast.Assign, ast.Call, str], assign_ba
     ast_m = ast.parse("from dataclasses import is_dataclass")
     if imports is not None:
         ast_m.body.extend(imports)
+        print(f"DEBUG: is_dataclass_same imports added: {len(imports)}") # __AUTO_GENERATED_PRINT_VAR_END__
+    else:
+        print(f"DEBUG: not added ") # __AUTO_GENERATED_PRINT_VAR_END__
     ast_m.body.append(is_dataclass_result_assign_base)
     ast_m.body.append(is_dataclass_result_assign_target)
     ast_m.body.append(is_dataclass_result_assign_campare)
@@ -415,6 +423,8 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
     imports_base = get_imports(target)
     imports_target = get_imports(base)
     imports_combinded = [*imports_base,*imports_target]
+    for a in  imports_combinded:
+        print(f"DEBUG: merge a: {ast.dump(a)}") # __AUTO_GENERATED_PRINT_VAR_END__
 
     for i, stm in enumerate(target.body):
         if not isinstance(stm, ast.Assign):
@@ -428,7 +438,7 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
             base_assigments_id_merged.append(stm.targets[0].id)
             if _is_dict_assign(stm) and _is_dict_assign(same_base_assign):
                 # merge two dicts
-                stm_merged = _merge_assign_dict(stm, same_base_assign)
+                stm_merged = _merge_assign_dict(stm, same_base_assign, imports_combinded)
                 # TODO: check im manipulation while iter is ok
                 ast_trans = AstAssinTransform(stm_merged)
                 ast_trans.visit(target)
@@ -437,7 +447,7 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
             # elif is_dataclass(stm, imports_combinded) and is_dataclass(same_base_assign, imports_combinded):
             elif is_dataclass_same(stm, same_base_assign, imports_combinded):
 
-                stm_merged = _merge_assign_data_class(stm, same_base_assign, [*imports_base,*imports_target])
+                stm_merged = _merge_assign_data_class(stm, same_base_assign, imports_combinded)
                 # TODO: check im manipulation while iter is ok
                 ast_trans = AstAssinTransform(stm_merged)
                 ast_trans.visit(target)

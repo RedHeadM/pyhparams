@@ -457,6 +457,31 @@ a = TestParamsDictStr(value={{'val':'target'}})
     assert isinstance(merge_expr.get("a"),TestParamsDictStr)
     assert merge_expr.get("a").value.get('val') == "target"
 
+def test_ast_merge_dataclasses_no_dict_nodict_value():
+    kw_base = "kw_base"
+    base = ast.parse(
+        f"""
+from pyhparams.ast_data_fields_resolve import RESOLVE
+from pyhparams.utils import TestParamsDictStr
+a  = TestParamsDictStr(value=dict({kw_base}="should_be_gone"))
+"""
+    )
+    target = ast.parse(
+        f"""
+from pyhparams.ast_data_fields_resolve import RESOLVE
+from pyhparams.utils import TestParamsDictStr
+a  = TestParamsDictStr(value=dict(diffent_kw_to_base="target"))
+"""
+    )
+
+    merge_expr = ast_to_dict(merge(target, base=base))
+
+    from pyhparams.utils import TestParamsDictStr
+    assert isinstance(merge_expr.get("a"),TestParamsDictStr)
+    assert "kw_base" not in merge_expr.get("a").value
+    # assert merge_expr.get("a").value.get('diffent_kw_to_base') == "target"
+
+
 # TODO: to not allow syy path valls for usr
 # TODO: merge empty dict
 
