@@ -114,11 +114,7 @@ def _merge_keyword(target: List[ast.keyword], base: List[ast.keyword], import_ta
     target_kw = {k.arg: k.value for k in target}
     base_kw = {k.arg: k.value for k in base}
     merged_kew = dict(base_kw)
-    print("DEBUG _merge_keyword call")
 
-
-    if import_target is not None:
-        print(f"DEBUG: _merge_keyword import_target: {len(import_target)}") # __AUTO_GENERATED_PRINT_VAR_END__
 
     for k, v in target_kw.items():
         assert k is not None
@@ -328,9 +324,6 @@ def is_dataclass_same(assign_target: Union[ast.Assign, ast.Call, str], assign_ba
     ast_m = ast.parse("from dataclasses import is_dataclass")
     if imports is not None:
         ast_m.body.extend(imports)
-        print(f"DEBUG: is_dataclass_same imports added: {len(imports)}") # __AUTO_GENERATED_PRINT_VAR_END__
-    else:
-        print(f"DEBUG: not added ") # __AUTO_GENERATED_PRINT_VAR_END__
     ast_m.body.append(is_dataclass_result_assign_base)
     ast_m.body.append(is_dataclass_result_assign_target)
     ast_m.body.append(is_dataclass_result_assign_campare)
@@ -423,8 +416,6 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
     imports_base = get_imports(target)
     imports_target = get_imports(base)
     imports_combinded = [*imports_base,*imports_target]
-    for a in  imports_combinded:
-        print(f"DEBUG: merge a: {ast.dump(a)}") # __AUTO_GENERATED_PRINT_VAR_END__
 
     for i, stm in enumerate(target.body):
         if not isinstance(stm, ast.Assign):
