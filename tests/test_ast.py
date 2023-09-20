@@ -347,6 +347,63 @@ a  = NesttedTwoLevel(nested2=WithNested(nested=TestParamsStr(value1="target")))
     assert merge_expr.get("a").nested2.nested.value2 == "not_set2"
 
 
+def test_ast_merge_dataclass_attr_import():
+    base = ast.parse(
+        f"""
+from pyhparams.ast_data_fields_resolve import RESOLVE
+import pyhparams.utils as pyhu
+a  = pyhu.TestParamsStr(value1="must_be_changed")
+"""
+    )
+    target = ast.parse(
+        f"""
+import pyhparams.utils as pyhu
+a  = pyhu.TestParamsStr(value1="target")
+"""
+    )
+
+    merge_expr = ast_to_dict(merge(target, base=base))
+    assert merge_expr.get("a").value1 == "target"
+    assert merge_expr.get("a").value2 == "not_set2"
+
+def test_ast_merge_dataclass_attr2_import():
+    base = ast.parse(
+        f"""
+from pyhparams.ast_data_fields_resolve import RESOLVE
+import pyhparams as pyh
+a  = pyh.utils.TestParamsStr(value1="must_be_changed")
+"""
+    )
+    target = ast.parse(
+        f"""
+import pyhparams as pyh
+a  = pyh.utils.TestParamsStr(value1="target")
+"""
+    )
+
+    merge_expr = ast_to_dict(merge(target, base=base))
+    assert merge_expr.get("a").value1 == "target"
+    assert merge_expr.get("a").value2 == "not_set2"
+
+def test_ast_merge_nestested_dataclass_attr__import():
+    base = ast.parse(
+        f"""
+from pyhparams.ast_data_fields_resolve import RESOLVE
+import pyhparams.utils as pyhu
+a  = pyhu.WithNested(nested=pyhu.TestParamsStr(value1="must_be_changed"))
+"""
+    )
+    target = ast.parse(
+        f"""
+import pyhparams.utils as pyhu
+a  = pyhu.WithNested(nested=pyhu.TestParamsStr(value1="target"))
+"""
+    )
+
+    merge_expr = ast_to_dict(merge(target, base=base))
+    assert merge_expr.get("a").nested.value1 == "target"
+    assert merge_expr.get("a").nested.value2 == "not_set2"
+
 # TODO: to not allow syy path valls for usr
 # TODO: merge empty dict
 
