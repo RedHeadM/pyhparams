@@ -319,10 +319,7 @@ def is_dataclass_same(assign_target: Union[ast.Assign, ast.Call, str], assign_ba
         targets=[ast.Name(id=same_class_result_assign_var_name, ctx=ast.Store())],
         value=compare_call_base,
     )
-    a = ast.dump(is_dataclass_result_assign_base)
-    print(f"DEBUG: is_dataclass_same a: {a}") # __AUTO_GENERATED_PRINT_VAR_END__
     
-
     ast_m = ast.parse("from dataclasses import is_dataclass")
     if imports is not None:
         ast_m.body.extend(imports)
