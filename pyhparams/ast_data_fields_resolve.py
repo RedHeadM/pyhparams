@@ -89,7 +89,7 @@ class CollectResolveCallsNodeVisitor(ast.NodeVisitor):
             ), f"type error for {ast.dump(data_class_instance_attr)}"
             data_class_class_kw = ResolveAttributeToDataClassCall().visit_and_resolves(node)
             self.collected_resolve_calls[data_class_class_kw.class_name].add(data_class_class_kw.field_name)
-            print(f"DEBUG: resolve found: {data_class_class_kw.class_name}.{data_class_class_kw.field_name}")
+            # print(f"DEBUG: resolve found: {data_class_class_kw.class_name}.{data_class_class_kw.field_name}")
             if len(data_class_class_kw.nested_class_define) > 1:
                 raise NotImplementedError(f"not supporeded yet with nested imports {data_class_class_kw}")
             if node in self.node_to_dataclass_kw:
@@ -211,7 +211,7 @@ class TransformResolves(ast.NodeTransformer):
             id_dataclass_field = f"{data_class_kw.class_name}.{data_class_kw.field_name}"
             if value_call is not None:
                 # assert value_call is not None, f" dataclass field cound not be resolved: {id_dataclass_field}"
-                print(f"DEBUG resolve transform: {id_dataclass_field}={ast.dump(value_call)}")
+                # print(f"DEBUG resolve transform: {id_dataclass_field}={ast.dump(value_call)}")
                 self.transform_cnt += 1
                 self.resolved_dataclass_field.append(id_dataclass_field)
                 ret_transform = value_call
@@ -302,9 +302,9 @@ def get_default(data_class, field_name):
         ast_value_expr = ast.parse(f"default_val = {default_value}").body[0]
         assert isinstance(ast_value_expr, ast.Assign)
         ast_expr_default_value = ast_value_expr.value
-        print(
-            f"DEBUG: resolved iterabl default value for ast value{dataclass_name}.{dataclass_field}={ast.dump(ast_value_expr.value)}"
-        )
+        # print(
+        #     f"DEBUG: resolved iterabl default value for ast value{dataclass_name}.{dataclass_field}={ast.dump(ast_value_expr.value)}"
+        # )
     else:
         # also dataclasses.MISSING here
         # TODO: add import and func call to get value

@@ -174,3 +174,37 @@ target="target_value"
             assert ast_merded_file.get("base") ==  "base_value"
             assert ast_merded_file.get("target") ==  "target_value"
             assert ast_merded_file.get(pyhparams.config.BASE_KEY_ID) is None
+
+
+def test_tmp_conf_merge_dataclass():
+    conf_base = r"""
+from pyhparams.utils import TestParamsStr
+a = TestParamsStr(value1="to_be_merged", value2="still_there")
+    """
+    with config_file(conf_base) as f_base:
+        conf_target = f"""
+_base_ = "{f_base}" 
+from pyhparams.utils import TestParamsStr
+a = TestParamsStr(value1="target")
+    """
+        with config_file(conf_target) as f_target:
+            conf,_ = pyhparams.Config.create_from_file(str(f_target)) 
+            assert conf.a.value1 == "target"
+            assert conf.a.value2 == "still_there"
+
+def test_tmp_conf_merge_dataclass_nested():
+    conf_base = r"""
+from pyhparams.utils import TestParamsStr
+from pyhparams.utils import WithNested, TestParamsStr
+a  = WithNested(nested=TestParamsStr(value1="to_be_merged", value2="still_there"))
+    """
+    with config_file(conf_base) as f_base:
+        conf_target = f"""
+_base_ = "{f_base}" 
+from pyhparams.utils import WithNested, TestParamsStr
+a  = WithNested(nested=TestParamsStr(value1="target"))
+    """
+        with config_file(conf_target) as f_target:
+            conf,_ = pyhparams.Config.create_from_file(str(f_target)) 
+            assert conf.a.nested.value1 == "target"
+            assert conf.a.nested.value2 == "still_there"
