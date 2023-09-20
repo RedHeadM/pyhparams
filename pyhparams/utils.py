@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass,field
+from typing import Dict
 
 
 @dataclass
@@ -20,6 +21,11 @@ class TestParamsStr:
     """test data class for testing mgerges"""
     value1: str = "not_set"
     value2: str = "not_set2"
+
+@dataclass
+class TestParamsDictStr:
+    """test data class for testing mgerges"""
+    value: Dict[str,str] = field(default_factory=lambda:{"val":"not_changed"})
 
 @dataclass
 class WithNested:
