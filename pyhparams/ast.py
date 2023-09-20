@@ -74,7 +74,7 @@ def _merge_dict_call(target: ast.expr, base: ast.expr) -> ast.Call:
     kw_base = _unpack_keywords(base)
     kw_target = _unpack_keywords(target)
     assert kw_base is not None and kw_target is not None  # TODO
-    kw_merged = _merge_keyword(kw_target, kw_base)
+    kw_merged = _merge_keyword(kw_target, kw_base, None)
     # allway map ast.Dict to ast.Call with function dict
     return ast.Call(func=ast.Name(id="dict", ctx=ast.Load()), args=[], keywords=kw_merged)
 
@@ -82,24 +82,35 @@ def _merge_dict_call(target: ast.expr, base: ast.expr) -> ast.Call:
 def _merge_assign_data_class(
     target: ast.Assign,
     base: ast.Assign,
+    target_imports: Optional[List[Union[ast.Import, ast.ImportFrom]]]
 ) -> ast.Assign:
     # check if both are expected dict type
     for s in (target, base):
         assert isinstance(s, ast.Assign)
         assert len(s.targets) == 1
         assert isinstance(s.targets[0], ast.Name)
-        assert isinstance(s.value, ast.Call)
-
-    kw_base = _unpack_keywords(base.value)
-    kw_target = _unpack_keywords(target.value)
-    assert kw_base is not None and kw_target is not None  # TODO
-    kw_merged = _merge_keyword(kw_target, kw_base)
+        # assert isinstance(s.value, ast.Call)
     assert isinstance(target.value, ast.Call)
-    target.value.keywords = kw_merged
+    assert isinstance(base.value, ast.Call)
+    target.value = _merge_data_class_call(target.value, base.value, target_imports)
     return target
 
 
-def _merge_keyword(target: List[ast.keyword], base: List[ast.keyword]) -> List[ast.keyword]:
+def _merge_data_class_call(
+    target: ast.Call,
+    base: ast.Call,
+    target_imports: Optional[List[Union[ast.Import, ast.ImportFrom]]]
+    ) -> ast.Call:
+
+    kw_base = _unpack_keywords(base)
+    kw_target = _unpack_keywords(target)
+    assert kw_base is not None and kw_target is not None  # TODO
+    kw_merged = _merge_keyword(kw_target, kw_base, target_imports)
+    target.keywords = kw_merged
+    return target
+
+
+def _merge_keyword(target: List[ast.keyword], base: List[ast.keyword], import_target: Optional[List[Union[ast.Import, ast.ImportFrom]]]) -> List[ast.keyword]:
     target_kw = {k.arg: k.value for k in target}
     base_kw = {k.arg: k.value for k in base}
     merged_kew = dict(base_kw)
@@ -116,9 +127,18 @@ def _merge_keyword(target: List[ast.keyword], base: List[ast.keyword]) -> List[a
         ):
             # recusive call for now
             merged_kew[k] = _merge_dict_call(v, same_value_base)
-        # TODO: nested dataclasses
+
+        elif (
+            (same_value_base := base_kw.get(k)) is not None
+            # and is_dataclass(same_value_base, import_base)
+            and is_dataclass(v, import_target)
+        ):
+            # recusive call for now
+            assert isinstance(same_value_base, ast.Call)
+            assert isinstance(v, ast.Call)
+            merged_kew[k] = _merge_data_class_call(v, same_value_base, import_target)
         else:
-            # keep value from target
+            # keep value from target if not Dict or dataclass
             merged_kew[k] = v
     return [ast.keyword(arg=k, value=v) for k, v in merged_kew.items()]
 
@@ -207,7 +227,7 @@ def _assign_is_dict_func_call(stmt: ast.stmt) -> bool:
     return isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Dict)
 
 
-def is_dataclass_assign(assign: Union[ast.Assign, str], imports: List[Union[ast.Import, ast.ImportFrom]]) -> bool:
+def is_dataclass(assign: Union[ast.Assign, ast.Call, str], imports: Optional[List[Union[ast.Import, ast.ImportFrom]]]) -> bool:
     """for assign check if the call is a dataclass by calling by using imports dataclasses.is_dataclass"""
     is_dataclass_args = None
     # TODO:clean up
@@ -217,6 +237,12 @@ def is_dataclass_assign(assign: Union[ast.Assign, str], imports: List[Union[ast.
     elif isinstance(assign, ast.Assign) and isinstance(assign.value, ast.Call):
         if isinstance(assign.value.func, (ast.Name, ast.Attribute)):
             is_dataclass_args = [assign.value.func]
+        else:
+            raise ValueError(f"check is dataclass unexpected type:{ast.dump(assign)}")
+
+    elif isinstance(assign, ast.Call):
+        if isinstance(assign.func, (ast.Name, ast.Attribute)):
+            is_dataclass_args = [assign.func]
         else:
             raise ValueError(f"check is dataclass unexpected type:{ast.dump(assign)}")
     else:
@@ -231,12 +257,14 @@ def is_dataclass_assign(assign: Union[ast.Assign, str], imports: List[Union[ast.
     )
 
     ast_m = ast.parse("from dataclasses import is_dataclass")
-    ast_m.body.extend(imports)
+    if imports is not None:
+        ast_m.body.extend(imports)
     ast_m.body.append(is_dataclass_result_assign)
 
     ast.fix_missing_locations(ast_m)
 
     return ast_to_dict(ast_m)[is_dataclass_result_assign_var_name]
+
 
 
 def _is_dataclass_name_id(
@@ -343,8 +371,9 @@ def merge(target: ast.Module, base: ast.Module) -> ast.Module:
                 ast_trans.visit(target)
                 assert ast_trans.num_replacement == 1
                 fix_missing_locations_needed = True
-            elif is_dataclass_assign(stm, imports_target) and is_dataclass_assign(same_base_assign, imports_base):
-                stm_merged = _merge_assign_data_class(stm, same_base_assign)
+            elif is_dataclass(stm, imports_target) and is_dataclass(same_base_assign, imports_base):
+
+                stm_merged = _merge_assign_data_class(stm, same_base_assign, imports_target)
                 # TODO: check im manipulation while iter is ok
                 ast_trans = AstAssinTransform(stm_merged)
                 ast_trans.visit(target)

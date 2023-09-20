@@ -8,7 +8,7 @@ from pyhparams.ast import (
     merge,
     compare,
     get_imports,
-    is_dataclass_assign,
+    is_dataclass,
     _unpack_keywords,
     remove_assigment,
 )
@@ -21,13 +21,10 @@ def test_ast_to_dict_str():
     d = ast_to_dict(ast.parse(c))
     assert d.get("var1") == "foo"
 
-
 def test_ast_to_dict_dict():
     c = r'var1={"foo":12}'
     d = ast_to_dict(ast.parse(c))
     assert d.get("var1").get("foo") == 12
-
-
 
 def test_ast_imports_none():
     c = r'var1="foo"'
@@ -42,12 +39,9 @@ def test_ast_remove():
     assert d.get("a") == "foo"
     assert d.get("b") is None
 
-
-
 def test_ast_compare():
     assert compare(ast.Constant("a"), ast.Constant("a"))
     assert not compare(ast.Constant("a"), ast.Constant("b"))
-
 
 def test_ast_imports():
     c = r"""
@@ -237,7 +231,7 @@ def test_ast_is_data_class_assing():
     a = ast.parse(f"{sys_path};import helper; to_be_merged=helper.TestParams(x=10,y=20)")
 
     # pass body to have imports with sys call correct
-    assert is_dataclass_assign(a.body[-1], imports=a.body[:-1])
+    assert is_dataclass(a.body[-1], imports=a.body[:-1])
 
 
 def test_ast_is_data_class_assing_from_import():
@@ -247,14 +241,14 @@ def test_ast_is_data_class_assing_from_import():
     a = ast.parse(f"{sys_path};from helper import TestParams; to_be_merged=TestParams(x=10,y=20)")
 
     # pass body to have imports with sys call correct
-    assert is_dataclass_assign(a.body[-1], imports=a.body[:-1])
+    assert is_dataclass(a.body[-1], imports=a.body[:-1])
 
 
 def test_ast_is_data_class_assing_none():
     a = ast.parse(r"import pathlib; foo=pathlib.Path('a'); bar =2")
 
-    assert not is_dataclass_assign(a.body[-2], imports=[a.body[0]])
-    assert not is_dataclass_assign(a.body[-1], imports=[a.body[0]])
+    assert not is_dataclass(a.body[-2], imports=[a.body[0]])
+    assert not is_dataclass(a.body[-1], imports=[a.body[0]])
 
 
 def test_unpack_dict_keywords():
@@ -290,6 +284,67 @@ def test_ast_merge_dataclass_merge_attribule_import_replace():
     b = ast.parse(r"import pyhparams; to_be_merged=pyhparams.utils.UtilsTestParams(x=10)")
     merge_expr = ast_to_dict(merge(a, base=b))
     assert merge_expr.get("to_be_merged").x == 30
+
+
+def test_ast_merge_dataclass_nested():
+    base = ast.parse(
+        f"""
+from pyhparams.ast_data_fields_resolve import RESOLVE
+from pyhparams.utils import WithNested, TestParamsStr
+a  = WithNested(nested=TestParamsStr(value1="to_be_merged", value2="still_there"))
+"""
+    )
+    target = ast.parse(
+        f"""
+from pyhparams.ast_data_fields_resolve import RESOLVE
+from pyhparams.utils import WithNested, TestParamsStr
+a  = WithNested(nested=TestParamsStr(value1="target"))
+"""
+    )
+
+    merge_expr = ast_to_dict(merge(target, base=base))
+    assert merge_expr.get("a").nested.value1 == "target"
+    assert merge_expr.get("a").nested.value2 == "still_there"
+
+def test_ast_merge_dataclass_default_not_changed():
+    base = ast.parse(
+        f"""
+from pyhparams.ast_data_fields_resolve import RESOLVE
+from pyhparams.utils import WithNested, TestParamsStr
+a  = WithNested(nested=TestParamsStr(value1="to_be_merged"))
+"""
+    )
+    target = ast.parse(
+        f"""
+from pyhparams.ast_data_fields_resolve import RESOLVE
+from pyhparams.utils import WithNested, TestParamsStr
+a  = WithNested(nested=TestParamsStr(value1="target"))
+"""
+    )
+
+    merge_expr = ast_to_dict(merge(target, base=base))
+    assert merge_expr.get("a").nested.value1 == "target"
+    assert merge_expr.get("a").nested.value2 == "not_set2"
+
+def test_ast_merge_dataclass_level_two():
+    base = ast.parse(
+        f"""
+from pyhparams.ast_data_fields_resolve import RESOLVE
+from pyhparams.utils import WithNested, TestParamsStr, NesttedTwoLevel
+a  = NesttedTwoLevel(nested2=WithNested(nested=TestParamsStr(value1="to_be_merged")))
+"""
+    )
+    target = ast.parse(
+        f"""
+from pyhparams.ast_data_fields_resolve import RESOLVE
+from pyhparams.utils import WithNested, TestParamsStr, NesttedTwoLevel
+a  = NesttedTwoLevel(nested2=WithNested(nested=TestParamsStr(value1="target")))
+"""
+    )
+
+    merge_expr = ast_to_dict(merge(target, base=base))
+    assert merge_expr.get("a").nested2.nested.value1 == "target"
+    assert merge_expr.get("a").nested2.nested.value2 == "not_set2"
 
 
 # TODO: to not allow syy path valls for usr
