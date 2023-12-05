@@ -1,7 +1,7 @@
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Optional
 import tempfile
 import warnings
 import pyhparams
@@ -12,8 +12,8 @@ from pyhparams.ast import ast_to_dict
 
 
 @contextmanager
-def config_file(content: str, suffix: str = ".py") -> Iterator[Path]:
-    with tempfile.NamedTemporaryFile(mode="w+", suffix=suffix) as tmp_file:
+def config_file(content: str, suffix: str = ".py",dir:Optional[Path]=None) -> Iterator[Path]:
+    with tempfile.NamedTemporaryFile(mode="w+", suffix=suffix,dir= dir) as tmp_file:
         print(content, file=tmp_file, end="")
         tmp_file.flush()
         yield Path(str(tmp_file.name))
@@ -123,8 +123,6 @@ foo = 2
         assert conf2.foo == 2
         assert conf2.bar == "val1"
 
-
-
 def test_tmp_conf_merge_with_base_var_name():
     conf_base = r'''
 will_be_changed_by_target = "val1"
@@ -208,3 +206,128 @@ a  = WithNested(nested=TestParamsStr(value1="target"))
             conf,_ = pyhparams.Config.create_from_file(str(f_target)) 
             assert conf.a.nested.value1 == "target"
             assert conf.a.nested.value2 == "still_there"
+
+def test_tmp_conf_merge_with_dataclass():
+    from pyhparams.utils import UtilsTestParams
+
+    conf_base = r'''
+from pyhparams.utils import UtilsTestParams
+a_in_base = UtilsTestParams(x=10,y=100)
+    '''
+    with TemporaryDirectory() as dir:
+        base_file_name= "base_file.py"
+        base_file_dir_var_name = "$CONF_DIR"
+        conf_target = f'''
+_base_ = "{base_file_dir_var_name}/{base_file_name}" 
+a_in_base = UtilsTestParams(x=20)
+    '''
+        base_path_name = Path(str(dir)) / base_file_name
+        base_path_name.write_text(conf_base)
+
+        with config_file(conf_target) as f_target:
+            base_path_vars={base_file_dir_var_name:str(dir)}
+            conf,_ = pyhparams.Config.create_from_file(str(f_target), 
+                                                       base_path_vars=base_path_vars) 
+            assert isinstance(conf.a_in_base, UtilsTestParams)
+            assert conf.a_in_base.x == 20
+            assert conf.a_in_base.y == 100
+
+def test_tmp_conf_merge_with_dataclas_config_keyword():
+    from pyhparams.utils import UtilsTestParams
+
+    conf_base = r'''
+from pyhparams.utils import UtilsTestParams
+_config_ = UtilsTestParams(x=10,y=100)
+    '''
+    with TemporaryDirectory() as dir:
+        base_file_name= "base_file.py"
+        base_file_dir_var_name = "$CONF_DIR"
+        conf_target = f'''
+_base_ = "{base_file_dir_var_name}/{base_file_name}" 
+_config_ = UtilsTestParams(x=20)
+    '''
+        base_path_name = Path(str(dir)) / base_file_name
+        base_path_name.write_text(conf_base)
+
+        with config_file(conf_target) as f_target:
+            base_path_vars={base_file_dir_var_name:str(dir)}
+            conf,_ = pyhparams.Config.create_from_file(str(f_target), 
+                                                       base_path_vars=base_path_vars) 
+            assert isinstance(conf, UtilsTestParams)
+            assert conf.x == 20
+            assert conf.y == 100
+
+def test_tmp_conf_merge_with_dataclass():
+    from pyhparams.utils import TestParamsStr
+
+    conf_base = r'''
+from pyhparams.utils import UtilsTestParams
+a_in_base = TestParamsStr(value1="base1_val1",value2="base1_val2")
+    '''
+    conf_base_second = r'''
+from pyhparams.utils import TestParamsStr
+a_in_base = TestParamsStr(value2="base2_val2")
+    '''
+    with config_file(conf_base) as base_path, config_file(conf_base_second) as base_path_second:
+        conf_target = f'''
+from pyhparams.utils import TestParamsStr
+_base_ = ['{base_path}','{base_path_second}']
+a_in_base = TestParamsStr(value1="target_val1")
+    '''
+        with config_file(conf_target) as f_target:
+            conf,_ = pyhparams.Config.create_from_file(str(f_target))
+                                                       
+            assert isinstance(conf.a_in_base, TestParamsStr)
+            assert conf.a_in_base.value1 == "target_val1"
+            assert conf.a_in_base.value2 == "base2_val2"
+
+
+def test_tmp_conf_merge_with_nested_dataclass():
+    from pyhparams.utils import TestParamsStr, WithNested
+
+    conf_base = r'''
+from pyhparams.utils import TestParamsStr, WithNested
+_config_ = WithNested(nested=TestParamsStr(value1="base1_val1",value2="base1_val2"))
+    '''
+    conf_base_second = r'''
+from pyhparams.utils import TestParamsStr, WithNested
+_config_ = WithNested(nested=TestParamsStr(value2="base2_val2"),value_not_nested="value_not_nested_base2")
+    '''
+    with config_file(conf_base) as base_path, config_file(conf_base_second) as base_path_second:
+        conf_target = f'''
+from pyhparams.utils import TestParamsStr, WithNested
+_base_ = ['{base_path}','{base_path_second}']
+_config_ = WithNested(nested=TestParamsStr(value1="target_val1"))
+    '''
+        with config_file(conf_target) as f_target:
+            conf,_ = pyhparams.Config.create_from_file(str(f_target))
+                                                       
+            assert isinstance(conf, WithNested)
+            assert conf.nested.value1 == "target_val1"
+            assert conf.nested.value2 == "base2_val2"
+            assert conf.value_not_nested == "value_not_nested_base2"
+
+def test_tmp_conf_merge_with_nested_dataclass_base1_assign():
+    from pyhparams.utils import TestParamsStr, WithNested
+
+    conf_base = r'''
+from pyhparams.utils import TestParamsStr, WithNested
+_config_ = WithNested(nested=TestParamsStr(value1="base1_val1",value2="base1_val2"),value_not_nested="value_not_nested_base1")
+    '''
+    conf_base_second = r'''
+from pyhparams.utils import TestParamsStr, WithNested
+_config_ = WithNested(nested=TestParamsStr(value2="base2_val2"))
+    '''
+    with config_file(conf_base) as base_path, config_file(conf_base_second) as base_path_second:
+        conf_target = f'''
+from pyhparams.utils import TestParamsStr, WithNested
+_base_ = ['{base_path}','{base_path_second}']
+_config_ = WithNested(nested=TestParamsStr(value1="target_val1"))
+    '''
+        with config_file(conf_target) as f_target:
+            conf,_ = pyhparams.Config.create_from_file(str(f_target))
+                                                       
+            assert isinstance(conf, WithNested)
+            assert conf.nested.value1 == "target_val1"
+            assert conf.nested.value2 == "base2_val2"
+            assert conf.value_not_nested == "value_not_nested_base1"

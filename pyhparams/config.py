@@ -37,7 +37,7 @@ def _ast_from_file(filename: str, base_path_variables: Optional[Dict[str, str]])
         base_files = ast_helper.extract_assign_base_files(expr_target, BASE_KEY_ID, imports="from pathlib import Path")
         print(f"INFO: config loading target config: {filename}")  # TODO: logging
 
-        for base_file_name in base_files:
+        for base_file_name in reversed(base_files):
             base_file_name = _expand_base_vars(base_file_name, base_path_variables)
             print(f"INFO: config merge with base: {base_file_name}")
             expr_base = ast_helper.parse_file(base_file_name)
@@ -79,8 +79,8 @@ class Config:
         filename = osp.abspath(osp.expanduser(filename))
         check_file_exist(filename)
         fileExtname = osp.splitext(filename)[1]
-        if fileExtname not in [".py", ".json", ".yaml", ".yml"]:
-            raise OSError("Only py/yml/yaml/json type are not supported")
+        if fileExtname not in (".py",):
+            raise OSError("Only .py type are not supported")
 
         # read config and get base files list
         merged_ast_from_file = _ast_from_file(filename, base_path_vars)
