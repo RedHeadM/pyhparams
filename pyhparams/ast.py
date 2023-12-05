@@ -187,7 +187,7 @@ def _unpack_keywords(assign_value: ast.expr) -> Optional[List[ast.keyword]]:
     #         return None
 
     if isinstance(assign_value, ast.Call):
-        assert assign_value.args is None or len(assign_value.args) == 0
+        assert assign_value.args is None or len(assign_value.args) == 0, f"for datalcasses use kwargs {ast.dump(assign_value)}"
         return assign_value.keywords
     elif isinstance(assign_value, ast.Dict):
         assert assign_value.values is not None
