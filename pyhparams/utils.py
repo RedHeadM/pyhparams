@@ -31,6 +31,7 @@ class TestParamsDictStr:
 class WithNested:
     """test data class for testing mgerges"""
     nested: TestParamsStr
+    value_not_nested: str ="not_nested_default"
 
 @dataclass
 class NesttedTwoLevel:
